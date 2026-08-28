@@ -1,0 +1,98 @@
+import { useRef, useState } from 'react';
+import { useApp } from '../store';
+
+/**
+ * The first thing anyone sees. Two paths in:
+ *
+ * - Chrome and Edge get the real folder picker, and the app can remember the
+ *   folder for next time.
+ * - Every other browser gets drag-and-drop, which works for one session only.
+ *   That limitation is stated up front rather than discovered later.
+ */
+export function FolderPicker() {
+  const supportsPicker = useApp((s) => s.supportsPicker);
+  const folderStatus = useApp((s) => s.folderStatus);
+  const folderName = useApp((s) => s.folderName);
+  const { connectFolder, reconnectFolder, importDroppedFiles } = useApp.getState();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const needsReconnect = folderStatus === 'needs-click' && folderName;
+
+  return (
+    <div
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (event.dataTransfer.files.length > 0) void importDroppedFiles(event.dataTransfer.files);
+      }}
+      className={`mx-auto max-w-xl rounded-lg border border-dashed p-8 text-center transition-colors ${
+        dragging ? 'border-primary bg-surface-2' : 'border-hairline-strong bg-surface-1'
+      }`}
+    >
+      <div className="mx-auto mb-4 h-8 w-8 rounded-md bg-primary" />
+      <h2 className="text-headline text-ink">
+        {needsReconnect ? 'Welcome back' : 'Point it at your music'}
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-body-sm text-ink-subtle">
+        {needsReconnect
+          ? `Your browser needs permission again to read "${folderName}". Nothing was lost — one click and the set can carry on.`
+          : 'Choose the folder your music lives in. The files stay on your computer; nothing is uploaded anywhere.'}
+      </p>
+
+      <div className="mt-6 flex flex-col items-center gap-3">
+        {needsReconnect ? (
+          <button
+            type="button"
+            onClick={() => void reconnectFolder()}
+            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+          >
+            Reconnect "{folderName}"
+          </button>
+        ) : supportsPicker ? (
+          <button
+            type="button"
+            onClick={() => void connectFolder()}
+            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+          >
+            Choose music folder
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+            >
+              Choose music files
+            </button>
+            <p className="max-w-sm text-caption text-ink-tertiary">
+              This browser cannot remember a folder between visits. Chrome or Edge can — or just drag your
+              music onto this box each time.
+            </p>
+          </>
+        )}
+
+        {!needsReconnect && supportsPicker && (
+          <p className="text-caption text-ink-tertiary">or drag a folder of music onto this box</p>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="audio/*"
+        className="hidden"
+        onChange={(event) => {
+          if (event.target.files?.length) void importDroppedFiles(event.target.files);
+        }}
+      />
+    </div>
+  );
+}
