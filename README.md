@@ -32,6 +32,21 @@ The first time a track comes up it gets analysed for tempo — a few seconds. Th
 happens quietly in the background for the rest of your library while you listen,
 and the result is remembered, so it only ever happens once per track.
 
+## Adding music
+
+Two ways in, and you can mix them freely:
+
+- **Choose music folder** — remembered between visits, so the app reconnects
+  with one click next time. **Add folder** connects another one alongside it;
+  your music does not have to live in one place.
+- **Pick individual songs** / **Add files** — adds one or more tracks straight
+  into the library without disturbing anything already there. These are only
+  for the current visit, because a browser is not allowed to remember a loose
+  file the way it remembers a folder.
+
+Either button is available at any time from the top bar, and dragging music
+onto the page works too.
+
 ## Putting it online (one-time setup)
 
 1. Create a repository on GitHub and push this folder to it.
@@ -102,12 +117,19 @@ nice transitions. That distinction drives most of the decisions below.
   a little with tempo; a set where every track lasted exactly 75 seconds would
   sound mechanical.
 - **Mixing** runs on two decks through a shared limiter. The incoming track is
-  pitched up to ±8% to match tempo (half and double time count as a match), its
-  first downbeat is scheduled to land exactly on a downbeat of the outgoing
-  track, and the two are crossfaded over 16 beats — four bars, short and punchy —
-  while the bass hands over in the middle. When the tempos cannot meet, or the
-  beat grid is not trustworthy, it falls back to a plain crossfade rather than
-  making a track sound wrong.
+  pitched up to ±8% to match tempo (half and double time count as a match) and
+  its entry is aligned to a **phrase** boundary, not just a bar — that is what
+  makes a blend land chorus-over-chorus instead of chorus-over-verse, and it is
+  most of the difference between sounding professional and sounding automatic.
+- **The transition itself** is a crossfade with three things layered over it:
+  the bass hands over in the middle so two kick drums never fight, a highpass
+  filter sweeps the outgoing track up and out from underneath, and a half-beat
+  echo throws on the last beats so it rings away instead of just stopping.
+  Blend length varies with the pair — short and punchy into a big lift, longer
+  between two calm tracks — because an auto-mix that always takes exactly
+  sixteen beats announces itself as a machine within three tracks.
+- When the tempos cannot meet, or the beat grid is not trustworthy, it falls
+  back to a plain crossfade rather than making a track sound wrong.
 - **After each mix** the new track slides gently back to its own tempo, so a long
   set can travel rather than staying stuck at the speed of whatever started it.
 - **The set builds.** Target energy climbs from moderate to peak across the first

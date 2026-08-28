@@ -18,6 +18,7 @@ interface AutoDjDb extends DBSchema {
 const DB_NAME = 'auto-dj';
 const DB_VERSION = 1;
 const FOLDER_KEY = 'musicFolder';
+const FOLDERS_KEY = 'musicFolders';
 
 let dbPromise: Promise<IDBPDatabase<AutoDjDb>> | null = null;
 
@@ -35,21 +36,31 @@ export function db(): Promise<IDBPDatabase<AutoDjDb>> {
   return dbPromise;
 }
 
-/* -- The chosen folder ----------------------------------------------------- */
+/* -- The chosen folders ---------------------------------------------------- */
 
-export async function saveFolderHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  // Directory handles are structured-cloneable, so IndexedDB can store them
-  // directly — this is what lets the app reconnect without a second picker.
-  (await db()).put('meta', handle, FOLDER_KEY);
+/**
+ * Music can live in more than one place, so this is a list. Directory handles
+ * are structured-cloneable, which is what lets the app reconnect to them
+ * without sending the user back through the picker.
+ */
+export async function saveFolderHandles(handles: FileSystemDirectoryHandle[]): Promise<void> {
+  (await db()).put('meta', handles, FOLDERS_KEY);
 }
 
-export async function loadFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
-  const stored = await (await db()).get('meta', FOLDER_KEY);
-  return (stored as FileSystemDirectoryHandle | undefined) ?? null;
+export async function loadFolderHandles(): Promise<FileSystemDirectoryHandle[]> {
+  const database = await db();
+  const stored = (await database.get('meta', FOLDERS_KEY)) as FileSystemDirectoryHandle[] | undefined;
+  if (stored) return stored;
+
+  // Older versions stored a single handle under a different key.
+  const legacy = (await database.get('meta', FOLDER_KEY)) as FileSystemDirectoryHandle | undefined;
+  return legacy ? [legacy] : [];
 }
 
-export async function forgetFolderHandle(): Promise<void> {
-  (await db()).delete('meta', FOLDER_KEY);
+export async function forgetFolderHandles(): Promise<void> {
+  const database = await db();
+  await database.delete('meta', FOLDERS_KEY);
+  await database.delete('meta', FOLDER_KEY);
 }
 
 /* -- Tracks ---------------------------------------------------------------- */

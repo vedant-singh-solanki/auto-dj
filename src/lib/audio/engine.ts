@@ -1,7 +1,7 @@
 import type { DeckId } from '../../types';
 import { audioContext, resumeAudio } from './context';
 import { Deck, type LoadedTrack } from './deck';
-import { type MixPlan, planMix, scheduleMix, snapToBar } from './transition';
+import { type MixPlan, planMix, scheduleMix } from './transition';
 
 /**
  * The mixer. Owns two decks and the master chain:
@@ -105,7 +105,8 @@ export class MixEngine {
     deck.load(loaded);
     const startAt = ctx.currentTime + 0.08;
     // Open the set on the hook, the same way every later track comes in.
-    const offset = Math.min(snapToBar(loaded.analysis, loaded.analysis.hookSec), loaded.analysis.durationSec * 0.7);
+    // The hook is itself the phrase anchor, so this needs no snapping.
+    const offset = Math.min(loaded.analysis.hookSec, loaded.analysis.durationSec * 0.7);
     deck.start(startAt, offset, 1, onEnded);
 
     deck.fader.gain.cancelScheduledValues(startAt);

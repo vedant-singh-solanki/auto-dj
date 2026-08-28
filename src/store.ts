@@ -6,12 +6,13 @@ import { handoverAt } from './lib/audio/transition';
 import type { LoadedTrack } from './lib/audio/deck';
 import { enqueueBackground, onAnalyzed } from './lib/analysis/queue';
 import { allAnalysis, allTracks } from './lib/library/db';
-import { type ImportProgress, importFromFiles, importFromFolder } from './lib/library/importer';
+import { addFiles, type ImportProgress, importFromFolders } from './lib/library/importer';
 import {
   checkFolderPermission,
   chooseFolder as openFolderPicker,
   FolderError,
-  restoreFolder,
+  rememberFolders,
+  restoreFolders,
   supportsFolderPicker,
 } from './lib/library/pickFolder';
 import { chooseNext, prepareTrack } from './lib/dj/autoDj';
@@ -38,7 +39,7 @@ export interface UpNext {
 /** Decoded audio for the next track: too large to keep in render state. */
 let preparedNext: LoadedTrack | null = null;
 let preparing = false;
-let folderHandle: FileSystemDirectoryHandle | null = null;
+let folderHandles: FileSystemDirectoryHandle[] = [];
 /** Set when the user picks the next track by hand; consumed once. */
 let forcedNextId: TrackId | null = null;
 /** Analyses that arrived since the last flush, batched to avoid render storms. */
@@ -71,8 +72,9 @@ interface AppState {
 
   init: () => Promise<void>;
   connectFolder: () => Promise<void>;
+  addFolder: () => Promise<void>;
   reconnectFolder: () => Promise<void>;
-  importDroppedFiles: (files: FileList | File[]) => Promise<void>;
+  addTrackFiles: (files: FileList | File[]) => Promise<void>;
   start: (trackId?: TrackId) => Promise<void>;
   togglePause: () => Promise<void>;
   skip: () => Promise<void>;
@@ -114,23 +116,43 @@ export const useApp = create<AppState>((set, get) => ({
     const [tracks, analyses] = await Promise.all([allTracks(), allAnalysis()]);
     set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])) });
 
-    const restored = await restoreFolder();
-    if (!restored) return;
+    const restored = await restoreFolders();
+    if (restored.length === 0) return;
 
-    folderHandle = restored.handle;
-    set({ folderName: restored.handle.name });
+    folderHandles = restored.map((entry) => entry.handle);
+    set({ folderName: describeFolders(folderHandles) });
 
-    if (restored.permission === 'granted') await scanInto(set, get, restored.handle);
+    if (restored.every((entry) => entry.permission === 'granted')) await rescan(set);
     else set({ folderStatus: 'needs-click' });
   },
 
+  /** Replaces the connected folders with one freshly picked. */
   async connectFolder() {
     try {
       const handle = await openFolderPicker();
       if (!handle) return;
-      folderHandle = handle;
-      set({ folderName: handle.name, error: null });
-      await scanInto(set, get, handle);
+      folderHandles = [handle];
+      await rememberFolders(folderHandles);
+      set({ folderName: describeFolders(folderHandles), error: null });
+      await rescan(set);
+    } catch (error) {
+      set({ error: messageFor(error) });
+    }
+  },
+
+  /** Adds another folder alongside the ones already connected. */
+  async addFolder() {
+    try {
+      const handle = await openFolderPicker();
+      if (!handle) return;
+      // isSameEntry is the only reliable way to compare handles; names collide.
+      for (const existing of folderHandles) {
+        if (await existing.isSameEntry(handle)) return;
+      }
+      folderHandles = [...folderHandles, handle];
+      await rememberFolders(folderHandles);
+      set({ folderName: describeFolders(folderHandles), error: null });
+      await rescan(set);
     } catch (error) {
       set({ error: messageFor(error) });
     }
@@ -138,25 +160,34 @@ export const useApp = create<AppState>((set, get) => ({
 
   /** Chrome forgets file permissions between visits; one click restores them. */
   async reconnectFolder() {
-    if (!folderHandle) return get().connectFolder();
+    if (folderHandles.length === 0) return get().connectFolder();
     try {
-      const permission = await checkFolderPermission(folderHandle, true);
-      if (permission !== 'granted') {
-        set({ error: 'Access to that folder was not allowed. Choose the folder again to continue.' });
-        return;
+      for (const handle of folderHandles) {
+        if ((await checkFolderPermission(handle, true)) !== 'granted') {
+          set({ error: 'Access to that folder was not allowed. Choose the folder again to continue.' });
+          return;
+        }
       }
-      await scanInto(set, get, folderHandle);
+      await rescan(set);
     } catch (error) {
       set({ error: messageFor(error) });
     }
   },
 
-  async importDroppedFiles(files) {
+  /**
+   * Individual files, dropped or picked. Added alongside everything already in
+   * the library rather than replacing it — the point of adding one track is not
+   * to lose the rest.
+   */
+  async addTrackFiles(files) {
     try {
       set({ error: null, importing: { phase: 'scanning', done: 0, total: 0, label: '' } });
-      const tracks = await importFromFiles(files, (importing) => set({ importing }));
+      const tracks = await addFiles(files, (importing) => set({ importing }));
       finishImport(set, tracks);
-      set({ folderStatus: 'ready', folderName: 'Dropped files' });
+      set({
+        folderStatus: 'ready',
+        folderName: folderHandles.length > 0 ? describeFolders(folderHandles) : 'Added files',
+      });
     } catch (error) {
       set({ importing: null, error: messageFor(error) });
     }
@@ -315,9 +346,21 @@ export const useApp = create<AppState>((set, get) => ({
 type Setter = (partial: Partial<AppState>) => void;
 type Getter = () => AppState;
 
-async function scanInto(set: Setter, _get: Getter, handle: FileSystemDirectoryHandle): Promise<void> {
-  set({ importing: { phase: 'scanning', done: 0, total: 0, label: handle.name } });
-  const tracks = await importFromFolder(handle, (importing) => set({ importing }));
+/** Names the connected folders for the header. */
+function describeFolders(handles: FileSystemDirectoryHandle[]): string | null {
+  if (handles.length === 0) return null;
+  if (handles.length === 1) return handles[0].name;
+  return `${handles[0].name} +${handles.length - 1} more`;
+}
+
+/**
+ * Rebuilds the library from every connected folder. This is the authoritative
+ * pass: tracks whose files have gone are dropped. Individually added files are
+ * session-only, so they do not survive it — there is no handle to find them by.
+ */
+async function rescan(set: Setter): Promise<void> {
+  set({ importing: { phase: 'scanning', done: 0, total: 0, label: '' } });
+  const tracks = await importFromFolders(folderHandles, (importing) => set({ importing }));
   finishImport(set, tracks);
   set({ folderStatus: 'ready' });
 }

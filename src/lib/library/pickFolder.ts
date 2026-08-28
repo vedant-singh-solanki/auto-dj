@@ -1,6 +1,7 @@
-import { forgetFolderHandle, loadFolderHandle, saveFolderHandle } from './db';
+import { forgetFolderHandles, loadFolderHandles, saveFolderHandles } from './db';
 
 /**
+
  * Firefox and Safari have no File System Access API. They fall back to a
  * drag-and-drop / file-input path that works for one session but cannot
  * remember the folder — see `FolderPicker.tsx`.
@@ -13,6 +14,7 @@ export function supportsFolderPicker(): boolean {
 export class FolderError extends Error {}
 
 /**
+
  * Opens the system folder picker. Returns null if the user closed it — that is
  * a normal outcome, not an error.
  */
@@ -24,7 +26,6 @@ export async function chooseFolder(): Promise<FileSystemDirectoryHandle | null> 
   }
   try {
     const handle = await window.showDirectoryPicker!({ id: 'auto-dj-music', mode: 'read', startIn: 'music' });
-    await saveFolderHandle(handle);
     return handle;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') return null;
@@ -38,6 +39,7 @@ export async function chooseFolder(): Promise<FileSystemDirectoryHandle | null> 
 export type PermissionOutcome = 'granted' | 'needs-click' | 'denied';
 
 /**
+
  * Chrome drops file permissions between visits, so a remembered folder is
  * re-granted with one click rather than a second trip through the picker.
  * `prompt: false` checks silently; `true` may show the browser's own dialog and
@@ -56,20 +58,33 @@ export async function checkFolderPermission(
   return asked === 'granted' ? 'granted' : 'denied';
 }
 
+export interface RestoredFolder {
+  handle: FileSystemDirectoryHandle;
+  permission: PermissionOutcome;
+}
+
 /**
- * The folder used last time, if the browser still has it. Never prompts —
- * the UI shows a "Reconnect" button when this returns `needs-click`.
+ * The folders used last time, if the browser still has them. Never prompts —
+ * the UI shows a "Reconnect" button when any of them need a click.
  */
-export async function restoreFolder(): Promise<
-  { handle: FileSystemDirectoryHandle; permission: PermissionOutcome } | null
-> {
-  const handle = await loadFolderHandle();
-  if (!handle) return null;
-  try {
-    return { handle, permission: await checkFolderPermission(handle, false) };
-  } catch {
-    // The folder was deleted, or lives on a drive that is no longer plugged in.
-    await forgetFolderHandle();
-    return null;
+export async function restoreFolders(): Promise<RestoredFolder[]> {
+  const handles = await loadFolderHandles();
+  const restored: RestoredFolder[] = [];
+
+  for (const handle of handles) {
+    try {
+      restored.push({ handle, permission: await checkFolderPermission(handle, false) });
+    } catch {
+      // Deleted, or on a drive that is no longer plugged in. Skip it; the other
+      // folders should still come back.
+    }
   }
+
+  if (restored.length === 0 && handles.length > 0) await forgetFolderHandles();
+  return restored;
+}
+
+/** Adds a folder to the remembered list, keeping the order stable. */
+export async function rememberFolders(handles: FileSystemDirectoryHandle[]): Promise<void> {
+  await saveFolderHandles(handles);
 }

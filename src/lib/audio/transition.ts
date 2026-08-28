@@ -8,7 +8,7 @@ import {
   SEGMENT_MIN_SEC,
   SEGMENT_TARGET_SEC,
 } from '../constants';
-import { BASS_CUT_DB, type Deck } from './deck';
+import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ } from './deck';
 
 /**
  * Everything about how one track hands over to the next.
@@ -24,6 +24,11 @@ const MIN_LEAD_SEC = 1.5;
 const MIN_MIX_SEC = 2;
 /** Plain crossfades ignore the beat grid and just take this long. */
 const PLAIN_MIX_SEC = 5;
+
+/** How many beats before the end of a blend the echo throw reaches full send. */
+const ECHO_THROW_BEATS = 3;
+/** Send level for the throw. Loud enough to hear, quiet enough not to smear. */
+const ECHO_SEND = 0.32;
 
 export interface MixPlan {
   kind: MixKind;
@@ -43,11 +48,24 @@ export function beatSec(analysis: Analysis): number {
   return 60 / analysis.bpm;
 }
 
-/** The first bar line at or after `t`, in that track's own seconds. */
-export function snapToBar(analysis: Analysis, t: number, beatsPerBar = 4): number {
-  const bar = beatSec(analysis) * beatsPerBar;
-  if (bar <= 0) return t;
-  return analysis.beatOffset + Math.ceil((t - analysis.beatOffset) / bar) * bar;
+/**
+ * The first phrase boundary at or after `t`, in that track's own seconds.
+ *
+ * This is the difference between a mix that sounds professional and one that
+ * sounds automatic. Music is built in phrases — typically 8 or 16 bars — and a
+ * blend that starts halfway through one lands the incoming chorus over the
+ * outgoing verse. Snapping to bars (the previous behaviour) is not enough;
+ * every fourth bar is a phrase, and only one of them is the right one.
+ *
+ * The phrase grid is anchored on the hook rather than on the detected beat
+ * offset. The beat offset is just wherever the first beat happened to be
+ * detected and carries no musical meaning, whereas the hook is a real section
+ * boundary — so counting phrases out from it lands them where the music does.
+ */
+export function snapToPhrase(analysis: Analysis, t: number): number {
+  const phrase = beatSec(analysis) * PHRASE_BEATS;
+  if (phrase <= 0) return t;
+  return analysis.hookSec + Math.round((t - analysis.hookSec) / phrase) * phrase;
 }
 
 /**
@@ -110,6 +128,26 @@ export function handoverAt(analysis: Analysis): number {
   return Math.max(analysis.hookSec + blendSpan, handover);
 }
 
+/**
+ * How long this particular blend should be, in beats.
+ *
+ * A DJ does not use the same transition all night, and an auto-mix that always
+ * takes exactly sixteen beats announces itself as a machine within three
+ * tracks. The length follows the energy relationship, which is roughly what a
+ * human is reacting to:
+ *
+ * - dropping into something much bigger gets a short, punchy blend, because a
+ *   long fade would waste the lift;
+ * - two calm tracks get a long one, because there is nothing to hurry for;
+ * - everything else gets the default.
+ */
+export function blendBeatsFor(outgoing: Analysis, incoming: Analysis): number {
+  const jump = incoming.energyScore - outgoing.energyScore;
+  if (jump > 0.18) return Math.round(DEFAULT_MIX_BEATS / 2);
+  if (jump < -0.05 && incoming.energyScore < 0.55) return DEFAULT_MIX_BEATS * 2;
+  return DEFAULT_MIX_BEATS;
+}
+
 export function planMix(input: MixInput): MixPlan {
   const { outgoing, outgoingRate, outgoingPositionSec, incoming, contextNow, immediate } = input;
 
@@ -118,7 +156,7 @@ export function planMix(input: MixInput): MixPlan {
   const rate = trusted ? matchRate(outgoingBpm, incoming.bpm) : null;
   const kind: MixKind = rate === null ? 'plain' : 'beatmatched';
 
-  const beats = input.beats ?? DEFAULT_MIX_BEATS;
+  const beats = input.beats ?? blendBeatsFor(outgoing, incoming);
   let durationSec = kind === 'beatmatched' ? (beats * 60) / outgoingBpm : PLAIN_MIX_SEC;
 
   // Work in the outgoing track's own seconds, then convert to context time once.
@@ -135,12 +173,17 @@ export function planMix(input: MixInput): MixPlan {
   const latest = Math.max(earliest, outgoing.durationSec - spanInTrack);
   let startInTrack = immediate ? earliest : Math.max(earliest, handoverAt(outgoing));
   startInTrack = Math.min(startInTrack, latest);
-  if (kind === 'beatmatched') startInTrack = Math.min(snapToBar(outgoing, startInTrack), latest);
+  if (kind === 'beatmatched') {
+    // snapToPhrase rounds to the NEAREST phrase, so it can move the start
+    // earlier. Re-clamp: a mix scheduled before the earliest safe point would
+    // land in the past on the audio clock.
+    startInTrack = Math.max(earliest, Math.min(snapToPhrase(outgoing, startInTrack), latest));
+  }
 
   // Come in at the hook, not at bar one. This is the difference between a set
   // and a playlist.
   let offsetSec = incoming.hookSec;
-  if (kind === 'beatmatched') offsetSec = snapToBar(incoming, offsetSec);
+  if (kind === 'beatmatched') offsetSec = snapToPhrase(incoming, offsetSec);
   // But never so late that there is no track left to play — and never earlier
   // than where the track actually starts making sound.
   const latestEntry = Math.max(incoming.mixInSec, incoming.durationSec - SEGMENT_MIN_SEC);
@@ -178,6 +221,8 @@ function equalPowerCurve(rising: boolean, steps = 128): Float32Array {
 export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPlan, onIncomingEnded?: () => void): void {
   const { startAt, durationSec, rate, offsetSec } = plan;
   const endAt = startAt + durationSec;
+  // One beat of the outgoing track, as heard. Drives the echo timing.
+  const outgoingBeatSec = plan.beats > 0 ? durationSec / plan.beats : 0;
 
   incomingDeck.start(startAt, offsetSec, rate, onIncomingEnded);
 
@@ -204,6 +249,34 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   outgoingLow.cancelScheduledValues(startAt);
   outgoingLow.setValueAtTime(0, swapStart);
   outgoingLow.linearRampToValueAtTime(BASS_CUT_DB, swapEnd);
+
+  // Filter sweep out. A DJ rides the highpass up as a track leaves, so it
+  // thins from underneath rather than simply getting quieter. Starts later
+  // than the bass swap so the two read as one gesture rather than two.
+  const outgoingFilter = outgoingDeck.highpass.frequency;
+  outgoingFilter.cancelScheduledValues(startAt);
+  outgoingFilter.setValueAtTime(FILTER_OPEN_HZ, startAt);
+  outgoingFilter.setValueAtTime(FILTER_OPEN_HZ, startAt + durationSec * 0.45);
+  // Exponential, because pitch is logarithmic — a linear sweep does nothing
+  // for the first half and then lurches.
+  outgoingFilter.exponentialRampToValueAtTime(FILTER_SWEEP_HZ, endAt);
+
+  // Echo throw on the last beats, so the outgoing track rings away instead of
+  // simply stopping. Only when the tempo is known, since the delay has to be
+  // in time to sound like anything but a mistake.
+  if (plan.kind === 'beatmatched' && outgoingBeatSec > 0) {
+    const throwAt = endAt - outgoingBeatSec * ECHO_THROW_BEATS;
+    outgoingDeck.echoDelay.delayTime.setValueAtTime(outgoingBeatSec / 2, startAt);
+
+    const send = outgoingDeck.echoSend.gain;
+    send.cancelScheduledValues(startAt);
+    send.setValueAtTime(0, startAt);
+    send.linearRampToValueAtTime(ECHO_SEND, throwAt);
+    // Cut the send at the end; the feedback loop carries the tail out on its
+    // own, which is what makes it decay rather than stop dead.
+    send.setValueAtTime(ECHO_SEND, endAt);
+    send.linearRampToValueAtTime(0, endAt + outgoingBeatSec);
+  }
 
   outgoingDeck.stopAt(endAt + 0.05);
 }

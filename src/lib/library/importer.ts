@@ -29,7 +29,8 @@ interface Candidate {
 async function buildTracks(
   candidates: Candidate[],
   onProgress: (p: ImportProgress) => void,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  options: { prune: boolean },
 ): Promise<Track[]> {
   // Tracks already imported keep their tags — a re-scan should be cheap.
   const known = new Map((await allTracks()).map((t) => [t.id, t]));
@@ -75,44 +76,65 @@ async function buildTracks(
   await Promise.all(Array.from({ length: Math.min(TAG_CONCURRENCY, candidates.length) }, worker));
 
   await putTracks(results);
-  await pruneTracks(new Set(results.map((t) => t.id)));
+  // Only a full folder rescan is allowed to decide a track no longer exists.
+  // Adding one file must not wipe everything it did not mention.
+  if (options.prune) await pruneTracks(new Set(results.map((t) => t.id)));
+
+  const library = options.prune ? results : await allTracks();
   onProgress({ phase: 'done', done: results.length, total: candidates.length, label: '' });
-  return results;
+  return library;
 }
 
-/** Chrome/Edge path: walk a folder the user picked. */
-export async function importFromFolder(
-  root: FileSystemDirectoryHandle,
+/**
+ * Scans every folder the user has connected.
+ *
+ * This is the authoritative rebuild of the library: sources are cleared first
+ * and anything no longer found is pruned, so deleting a file on disk removes it
+ * here too. Individually added files are session-only and are re-added by the
+ * caller afterwards — there is no handle to find them by after a reload.
+ */
+export async function importFromFolders(
+  roots: FileSystemDirectoryHandle[],
   onProgress: (p: ImportProgress) => void,
   signal?: AbortSignal,
 ): Promise<Track[]> {
-  const files = await scanFolder(
-    root,
-    ({ found, folder }) => onProgress({ phase: 'scanning', done: found, total: 0, label: folder }),
-    signal,
-  );
+  const candidates: Candidate[] = [];
+
+  for (const root of roots) {
+    const files = await scanFolder(
+      root,
+      ({ found, folder }) =>
+        onProgress({ phase: 'scanning', done: candidates.length + found, total: 0, label: folder }),
+      signal,
+    );
+    for (const file of files) {
+      candidates.push({
+        // Folders are prefixed so two folders with a "House" subfolder stay apart.
+        path: `${root.name}/${file.path}`,
+        supported: file.supported,
+        getFile: () => file.handle.getFile(),
+        register: (id) => registerSource(id, file.handle),
+      });
+    }
+  }
 
   clearSources();
-  return buildTracks(
-    files.map((f) => ({
-      path: f.path,
-      supported: f.supported,
-      getFile: () => f.handle.getFile(),
-      register: (id) => registerSource(id, f.handle),
-    })),
-    onProgress,
-    signal,
-  );
+  return buildTracks(candidates, onProgress, signal, { prune: true });
 }
 
-/** Fallback path: files dropped on the page, or chosen with a file input. */
-export async function importFromFiles(
+/**
+ * Adds individual files — dropped on the page, or picked one at a time.
+ *
+ * Additive by design: these sit alongside whatever folders are connected rather
+ * than replacing them, which is the whole point of being able to add a single
+ * track without rebuilding the library.
+ */
+export async function addFiles(
   files: FileList | File[],
   onProgress: (p: ImportProgress) => void,
   signal?: AbortSignal,
 ): Promise<Track[]> {
   const picked = scannedFilesFromInput(files);
-  clearSources();
   return buildTracks(
     picked.map((f) => ({
       path: f.path,
@@ -122,5 +144,6 @@ export async function importFromFiles(
     })),
     onProgress,
     signal,
+    { prune: false },
   );
 }

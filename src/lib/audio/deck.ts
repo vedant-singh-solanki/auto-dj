@@ -4,11 +4,17 @@ import { audioContext } from './context';
 /**
  * One playing track and its signal path:
  *
- *   source -> trim (auto-gain) -> low -> mid -> high -> fader -> master
+ *   source -> trim -> low -> mid -> high -> highpass -> fader -> master
+ *                                       \-> echo send -> delay -> master
  *
  * The trim exists so two tracks mastered at different levels arrive at the
- * crossfader sounding equally loud; the low shelf exists so the bass of the
- * outgoing track can be pulled out as the incoming one takes over.
+ * crossfader sounding equally loud. The low shelf lets the outgoing bass be
+ * pulled out as the incoming track takes over. The highpass is the filter
+ * sweep a DJ rides on the way out, and the echo send is the throw at the end
+ * of it — both are silent until a transition asks for them.
+ *
+ * The echo is tapped BEFORE the fader on purpose: the tail has to keep ringing
+ * after the track itself has been faded away, which is the whole effect.
  */
 
 /** Decks are trimmed towards this level, in the same dBFS-ish units as
@@ -19,6 +25,12 @@ const MIN_TRIM = 0.3;
 const MAX_TRIM = 3;
 
 export const BASS_CUT_DB = -26;
+
+/** Where the filter sweep ends up. High enough to thin the track out, low
+ *  enough that it is still recognisably there. */
+export const FILTER_SWEEP_HZ = 900;
+/** Resting position of the highpass: out of the way. */
+export const FILTER_OPEN_HZ = 20;
 
 export interface LoadedTrack {
   track: Track;
@@ -33,6 +45,12 @@ export class Deck {
   readonly low: BiquadFilterNode;
   readonly mid: BiquadFilterNode;
   readonly high: BiquadFilterNode;
+  /** The filter a DJ sweeps up as a track leaves. Parked at 20Hz otherwise. */
+  readonly highpass: BiquadFilterNode;
+  /** Silent except during a throw at the end of a transition. */
+  readonly echoSend: GainNode;
+  readonly echoDelay: DelayNode;
+  readonly echoFeedback: GainNode;
   readonly fader: GainNode;
 
   loaded: LoadedTrack | null = null;
@@ -67,10 +85,35 @@ export class Deck {
     this.high.type = 'highshelf';
     this.high.frequency.value = 4000;
 
+    this.highpass = ctx.createBiquadFilter();
+    this.highpass.type = 'highpass';
+    this.highpass.frequency.value = FILTER_OPEN_HZ;
+    this.highpass.Q.value = 0.9;
+
     this.fader = ctx.createGain();
     this.fader.gain.value = 0;
 
-    this.trim.connect(this.low).connect(this.mid).connect(this.high).connect(this.fader).connect(destination);
+    this.trim
+      .connect(this.low)
+      .connect(this.mid)
+      .connect(this.high)
+      .connect(this.highpass)
+      .connect(this.fader)
+      .connect(destination);
+
+    // Echo throw. Tapped ahead of the fader so the tail outlives the fade, and
+    // fed straight to the master for the same reason.
+    this.echoSend = ctx.createGain();
+    this.echoSend.gain.value = 0;
+
+    this.echoDelay = ctx.createDelay(2);
+    this.echoDelay.delayTime.value = 0.5;
+
+    this.echoFeedback = ctx.createGain();
+    this.echoFeedback.gain.value = 0.4;
+
+    this.high.connect(this.echoSend).connect(this.echoDelay).connect(destination);
+    this.echoDelay.connect(this.echoFeedback).connect(this.echoDelay);
   }
 
   get isPlaying(): boolean {
@@ -85,8 +128,16 @@ export class Deck {
     this.resetEq();
   }
 
+  /** Returns the whole channel strip to neutral: flat EQ, filter open, no echo. */
   resetEq(): void {
     const now = audioContext().currentTime;
+
+    this.highpass.frequency.cancelScheduledValues(now);
+    this.highpass.frequency.setValueAtTime(FILTER_OPEN_HZ, now);
+
+    this.echoSend.gain.cancelScheduledValues(now);
+    this.echoSend.gain.setValueAtTime(0, now);
+
     for (const band of [this.low, this.mid, this.high]) {
       band.gain.cancelScheduledValues(now);
       band.gain.setValueAtTime(0, now);

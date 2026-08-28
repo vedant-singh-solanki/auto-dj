@@ -13,7 +13,7 @@ export function FolderPicker() {
   const supportsPicker = useApp((s) => s.supportsPicker);
   const folderStatus = useApp((s) => s.folderStatus);
   const folderName = useApp((s) => s.folderName);
-  const { connectFolder, reconnectFolder, importDroppedFiles } = useApp.getState();
+  const { connectFolder, reconnectFolder, addTrackFiles } = useApp.getState();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -29,7 +29,7 @@ export function FolderPicker() {
       onDrop={(event) => {
         event.preventDefault();
         setDragging(false);
-        if (event.dataTransfer.files.length > 0) void importDroppedFiles(event.dataTransfer.files);
+        if (event.dataTransfer.files.length > 0) void addTrackFiles(event.dataTransfer.files);
       }}
       className={`mx-auto max-w-xl rounded-lg border border-dashed p-8 text-center transition-colors ${
         dragging ? 'border-primary bg-surface-2' : 'border-hairline-strong bg-surface-1'
@@ -55,13 +55,28 @@ export function FolderPicker() {
             Reconnect "{folderName}"
           </button>
         ) : supportsPicker ? (
-          <button
-            type="button"
-            onClick={() => void connectFolder()}
-            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
-          >
-            Choose music folder
-          </button>
+          <>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => void connectFolder()}
+                className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
+              >
+                Choose music folder
+              </button>
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="rounded-md border border-hairline-strong bg-surface-3 px-5 py-2.5 text-button text-ink-muted transition-colors hover:border-gold-line hover:bg-surface-4 hover:text-ink"
+              >
+                Pick individual songs
+              </button>
+            </div>
+            <p className="max-w-sm text-caption text-ink-tertiary">
+              A folder is remembered for next time. Individual songs are added just for this visit — you
+              can add more of either at any point.
+            </p>
+          </>
         ) : (
           <>
             <button
@@ -79,7 +94,7 @@ export function FolderPicker() {
         )}
 
         {!needsReconnect && supportsPicker && (
-          <p className="text-caption text-ink-tertiary">or drag a folder of music onto this box</p>
+          <p className="text-caption text-ink-tertiary">or drag music onto this box</p>
         )}
       </div>
 
@@ -90,7 +105,7 @@ export function FolderPicker() {
         accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.aac,.wav,.flac,.ogg,.opus"
         className="hidden"
         onChange={(event) => {
-          if (event.target.files?.length) void importDroppedFiles(event.target.files);
+          if (event.target.files?.length) void addTrackFiles(event.target.files);
         }}
       />
     </div>

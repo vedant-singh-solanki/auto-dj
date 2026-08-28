@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { DeckId, Track } from './types';
 import { mixEngine } from './lib/audio/engine';
 import { useApp } from './store';
@@ -21,7 +21,7 @@ const DEMO_MODE = import.meta.env.DEV && new URLSearchParams(window.location.sea
 
 async function loadDemoSet(): Promise<void> {
   const { buildDemoFiles } = await import('./dev/demoSet');
-  await useApp.getState().importDroppedFiles(buildDemoFiles());
+  await useApp.getState().addTrackFiles(buildDemoFiles());
 }
 
 export function App() {
@@ -35,6 +35,8 @@ export function App() {
   const upNext = useApp((s) => s.upNext);
   const error = useApp((s) => s.error);
   const status = useApp((s) => s.status);
+  const supportsPicker = useApp((s) => s.supportsPicker);
+  const addFilesRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void init();
@@ -54,15 +56,15 @@ export function App() {
 
   return (
     <div className="flex h-screen flex-col bg-canvas">
-      <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-3">
-        <div className="btn-gold h-5 w-5 rounded-xs" />
-        <span className="text-body font-medium text-ink">Auto DJ</span>
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline px-4 py-3">
+        <div className="btn-gold h-5 w-5 shrink-0 rounded-xs" />
+        <span className="shrink-0 whitespace-nowrap text-body font-medium text-ink">Auto DJ</span>
         {folderName && (
-          <span className="truncate text-caption text-ink-tertiary">
+          <span className="hidden truncate text-caption text-ink-tertiary sm:inline">
             {folderName} · {tracks.length} tracks
           </span>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {DEMO_MODE && (
             <button
               type="button"
@@ -73,15 +75,44 @@ export function App() {
             </button>
           )}
           {ready && (
-            <button
-              type="button"
-              onClick={() => void useApp.getState().connectFolder()}
-              className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:text-ink"
-            >
-              Change folder
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => addFilesRef.current?.click()}
+                className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+              >
+                Add files
+              </button>
+              {supportsPicker && (
+                <button
+                  type="button"
+                  onClick={() => void useApp.getState().addFolder()}
+                  className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+                >
+                  Add folder
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void useApp.getState().connectFolder()}
+                className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:text-ink"
+              >
+                Change folder
+              </button>
+            </>
           )}
         </div>
+        <input
+          ref={addFilesRef}
+          type="file"
+          multiple
+          accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.aac,.wav,.flac,.ogg,.opus"
+          className="hidden"
+          onChange={(event) => {
+            if (event.target.files?.length) void useApp.getState().addTrackFiles(event.target.files);
+            event.target.value = '';
+          }}
+        />
       </header>
 
       {error && (
