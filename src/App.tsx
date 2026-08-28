@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import type { DeckId, Track } from './types';
+import { mixEngine } from './lib/audio/engine';
 import { useApp } from './store';
 import { FolderPicker } from './components/FolderPicker';
 import { ScanProgress } from './components/ScanProgress';
@@ -6,7 +8,8 @@ import { TrackTable } from './components/TrackTable';
 import { NowPlaying } from './components/NowPlaying';
 import { NextUp } from './components/NextUp';
 import { Transport } from './components/Transport';
-import { Spectrum } from './components/Spectrum';
+import { Platter } from './components/Platter';
+import { MasterLevel } from './components/MasterLevel';
 import { TransitionMeter } from './components/TransitionMeter';
 
 /** How often the control loop runs. Audio timing does not depend on this. */
@@ -44,10 +47,15 @@ export function App() {
 
   const ready = folderStatus === 'ready' && tracks.length > 0;
 
+  // Which track sits on which platter. The live deck holds what is playing; the
+  // other holds whatever is cued up behind it.
+  const trackOnDeck = (deckId: DeckId): Track | null =>
+    (mixEngine().liveDeckId === deckId ? nowPlaying?.track : upNext?.track) ?? null;
+
   return (
     <div className="flex h-screen flex-col bg-canvas">
       <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-3">
-        <div className="h-5 w-5 rounded-sm bg-primary" />
+        <div className="btn-gold h-5 w-5 rounded-xs" />
         <span className="text-body font-medium text-ink">Auto DJ</span>
         {folderName && (
           <span className="truncate text-caption text-ink-tertiary">
@@ -100,11 +108,11 @@ export function App() {
           </div>
         ) : (
           <div className="mx-auto grid h-full max-w-6xl grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-            <div className="flex min-h-0 flex-col">
+            <div className="order-2 flex min-h-0 flex-col lg:order-1">
               <TrackTable />
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="order-1 flex flex-col gap-4 lg:order-2">
               {nowPlaying ? (
                 <>
                   <NowPlaying loaded={nowPlaying} />
@@ -112,7 +120,7 @@ export function App() {
                   <NextUp info={upNext} live={nowPlaying} />
                 </>
               ) : (
-                <section className="rounded-lg border border-hairline bg-surface-1 p-6 text-center">
+                <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-6 text-center">
                   <p className="text-body text-ink">
                     {status === 'starting' ? 'Getting the first track ready…' : 'Ready when you are.'}
                   </p>
@@ -124,10 +132,14 @@ export function App() {
 
               <Transport />
 
-              <div className="rounded-lg border border-hairline bg-surface-1 p-4">
-                <span className="text-eyebrow uppercase text-ink-tertiary">Master</span>
-                <div className="mt-2">
-                  <Spectrum />
+              <div className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
+                <span className="text-eyebrow uppercase text-ink-tertiary">Decks</span>
+                <div className="mt-4 flex items-start justify-center gap-6">
+                  <Platter deckId="a" track={trackOnDeck('a')} />
+                  <Platter deckId="b" track={trackOnDeck('b')} />
+                </div>
+                <div className="mt-4">
+                  <MasterLevel />
                 </div>
               </div>
             </div>

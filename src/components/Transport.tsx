@@ -24,14 +24,14 @@ export function Transport() {
   const busy = status === 'starting';
 
   return (
-    <section className="rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex flex-wrap items-center gap-2">
         {status === 'idle' ? (
           <button
             type="button"
             onClick={() => void start()}
             disabled={trackCount === 0 || busy}
-            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image] disabled:cursor-not-allowed"
           >
             {busy ? 'Starting…' : 'Start the set'}
           </button>
@@ -39,7 +39,7 @@ export function Transport() {
           <button
             type="button"
             onClick={() => void togglePause()}
-            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
           >
             {playing ? 'Pause' : 'Resume'}
           </button>
@@ -49,7 +49,7 @@ export function Transport() {
           type="button"
           onClick={() => void skip()}
           disabled={!playing}
-          className="rounded-md border border-hairline-strong bg-surface-2 px-4 py-2 text-button text-ink transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-hairline-strong bg-surface-3 px-4 py-2.5 text-button text-ink-muted transition-colors hover:border-gold-line hover:bg-surface-4 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           Skip — mix the next one in now
         </button>
@@ -63,7 +63,7 @@ export function Transport() {
             step={0.01}
             value={volume}
             onChange={(event) => setVolume(Number(event.target.value))}
-            className="w-28 accent-[var(--color-primary)]"
+            className="w-28 accent-[var(--color-gold)]"
             aria-label="Volume"
           />
         </label>
@@ -71,7 +71,7 @@ export function Transport() {
 
       <div className="mt-4">
         <span className="text-eyebrow uppercase text-ink-tertiary">Where next</span>
-        <div className="mt-2 inline-flex rounded-md border border-hairline bg-surface-2 p-0.5">
+        <div className="mt-2 inline-flex rounded-md border border-hairline bg-surface-2 p-1">
           {MOODS.map((option) => (
             <button
               key={option.value}
@@ -79,7 +79,7 @@ export function Transport() {
               title={option.hint}
               onClick={() => setMood(option.value)}
               className={`rounded-sm px-3 py-1.5 text-button transition-colors ${
-                mood === option.value ? 'bg-surface-4 text-ink' : 'text-ink-subtle hover:text-ink'
+                mood === option.value ? 'bg-surface-4 text-gold' : 'text-ink-subtle hover:text-ink'
               }`}
             >
               {option.label}

@@ -1,353 +1,243 @@
-# Design System — Linear
+# Design System — Auto DJ
 
-> This is the design source of truth for the app. Every colour, size, and radius
-> in the UI must trace back to a token here. Tokens are implemented once in
-> `src/styles/theme.css`; components reference them by name and never write a
-> raw hex value.
->
-> Three rules in this document describe Linear's *marketing site* and are adapted
-> for a product UI. Those adaptations are recorded at the end under
-> **Adaptations for this app** — read that section alongside the rules.
+Black and gold. A booth, not a dashboard.
 
-## Overview
+The reference points are professional DJ software — Rekordbox, Serato,
+VirtualDJ — but those are engineering tools, and they look it: grey chrome,
+rainbow waveforms, a control for everything. This app has one job and almost no
+controls, so it borrows their *structure* (dark room, hard-edged panels, big
+mono readouts, waveform as the hero) and drops their clutter.
 
-Linear's marketing canvas is the deepest dark surface in this collection — `{colors.canvas}` is #010102, essentially pure black with a faint blue tint. On top sits a four-step surface ladder (`{colors.surface-1}` through `{colors.surface-4}`) for cards, panels, and lifted tiles, with hairline borders running from `{colors.hairline}` (#23252a) up through `{colors.hairline-strong}` and `{colors.hairline-tertiary}`. Light gray text (`{colors.ink}` #f7f8f8) carries the body and headlines.
+The finish is the part that has to be right. Gold on black goes wrong in one of
+two ways: too little and it is just a dark app with a yellow button; too much
+and it is a casino. The rule below — **gold is light, not paint** — is what
+keeps it on the right side.
 
-The single chromatic accent is **Linear lavender-blue** `{colors.primary}` (#5e6ad2) — used on the brand mark, focus rings, and the primary CTA button. A lighter hover state (`{colors.primary-hover}` #828fff) and a focus-tinted variant (`{colors.primary-focus}` #5e69d1) extend the same hue. Linear avoids saturated greens, oranges, reds, etc. on the marketing canvas — the only semantic color is `{colors.semantic-success}` (#27a644) for status pills and the rare success indicator.
+---
 
-Display type runs Linear's custom sans (with `SF Pro Display` fallback) at weight 500–700 with negative letter-spacing scaling from -3.0px at 80px down to 0 at body. The body family is Linear's text cut, and a Linear Mono is reserved for code snippets in product screenshots.
+## Principles
 
-The page rhythm is **dense product screenshots** — Linear's marketing leads with high-fidelity captures of the product UI (issue list, project view, dashboard) framed in `{colors.surface-1}` panels with `{rounded.xl}` 16px corners. The chrome is intentionally minimal so the app screenshots can do the heavy lifting.
+1. **The room is dark.** True black canvas. This gets used in a dim room with
+   the music up; a light interface would be wrong even if it were prettier.
+2. **Gold is light, not paint.** Gold appears where something is live, active,
+   or being measured — a playing waveform, a level, the primary action, a focus
+   ring. It never fills a large area, never sits behind body text, and never
+   decorates something inert. A gold surface reads as cheap; gold *emitted* by
+   something reads as expensive.
+3. **The waveform is the hero.** It is the largest, brightest, most detailed
+   thing on screen. Everything else is chrome around it.
+4. **Numbers are instruments.** BPM, key, elapsed, remaining, level — always
+   monospace, always tabular, never re-flowing as they tick.
+5. **Edges, not shadows.** Depth comes from a surface ladder plus 1px hairlines
+   with a warm cast. Drop shadows on black do nothing; a lit top edge does.
+6. **Nothing moves that is not playing.** Animation is reserved for things that
+   represent live audio. No decorative motion.
 
-**Key Characteristics:**
-- **Dark-canvas marketing system** — `{colors.canvas}` (#010102) is the deepest dark in this collection.
-- **Lavender-blue brand accent** (`{colors.primary}` #5e6ad2) — used scarcely on brand mark, focus, and the primary CTA.
-- Four-step surface ladder (canvas → surface-1 → surface-2 → surface-3 → surface-4) carries hierarchy without shadow.
-- Display tracking pulls aggressively negative (-3.0px at 80px); body holds at -0.05px.
-- Cards use `{rounded.lg}` 12px corners with 1px hairline borders — never pill, rarely 16px.
-- **Product UI screenshots** dominate the page. The marketing chrome is a dark frame for the app.
-- No second chromatic color. No atmospheric gradients. No spotlight cards.
+---
 
-## Colors
+## Colour
 
-> Source pages: linear.app (home), /intake, /pricing, /contact/sales, /build.
+### The black ladder
 
-### Brand & Accent
-- **Lavender-Blue** ({colors.primary}): The signature Linear accent — primary CTA, brand mark, link emphasis.
-- **Lavender Hover** ({colors.primary-hover}): Lighter lavender (#828fff) — hovered state of the primary CTA.
-- **Lavender Focus** ({colors.primary-focus}): Focus-ring tint (#5e69d1) — focused inputs, focused buttons.
-- **Brand Secure** ({colors.brand-secure}): Muted lavender-gray (#7a7fad) — used in "Linear Security" surfaces.
-
-### Surface
-- **Canvas** ({colors.canvas}): Default page background — #010102, near-pure black with a faint blue tint.
-- **Surface 1** ({colors.surface-1}): One step above canvas — feature cards, pricing cards, product screenshot panels.
-- **Surface 2** ({colors.surface-2}): Two steps above — featured pricing card, hovered cards.
-- **Surface 3** ({colors.surface-3}): Three steps above — line-tertiary backgrounds, sub-nav.
-- **Surface 4** ({colors.surface-4}): Four steps above — bg-level-3, deepest lifted surface.
-- **Hairline** ({colors.hairline}): 1px borders on cards and dividers.
-- **Hairline Strong** ({colors.hairline-strong}): Stronger 1px borders — input focus rings.
-- **Hairline Tertiary** ({colors.hairline-tertiary}): Tertiary borders for nested surfaces.
-- **Inverse Canvas** ({colors.inverse-canvas}): Pure white — surface of the inverse pill CTA on a small set of section openers.
-- **Inverse Surface 1** ({colors.inverse-surface-1}): One step above inverse canvas.
-- **Inverse Surface 2** ({colors.inverse-surface-2}): Two steps above inverse canvas.
-
-### Text
-- **Ink** ({colors.ink}): All headlines and emphasized body type — light gray #f7f8f8.
-- **Ink Muted** ({colors.ink-muted}): Secondary type at #d0d6e0 — meta info on hero panels.
-- **Ink Subtle** ({colors.ink-subtle}): Tertiary type at #8a8f98 — deselected pricing tabs, footer columns.
-- **Ink Tertiary** ({colors.ink-tertiary}): Quaternary at #62666d — disabled, footnotes.
-
-### Semantic
-- **Success Green** ({colors.semantic-success}): Status pills, success indicators. The only semantic color on marketing.
-- **Overlay** ({colors.semantic-overlay}): Pure black overlay scrim for modals.
-
-## Typography
-
-### Font Family
-
-- **Linear Display** — Linear's custom display sans; fallback `SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto`. Carries display-xl through subhead.
-- **Linear Text** — Linear's custom text sans (a slightly different cut tuned for body sizes); same fallback stack. Carries body sizes, button labels, captions.
-- **Linear Mono** — Linear's custom mono; fallback `ui-monospace, SF Mono, Menlo`. Used for code snippets in product screenshots and for status / ID tokens.
-
-The marketing surface treats Display and Text as one continuous voice; the family change is silent.
-
-### Hierarchy
-
-| Token | Size | Weight | Line Height | Letter Spacing | Use |
-|---|---|---|---|---|---|
-| `{typography.display-xl}` | 80px | 600 | 1.05 | -3.0px | Largest hero headline |
-| `{typography.display-lg}` | 56px | 600 | 1.10 | -1.8px | Section opener headlines |
-| `{typography.display-md}` | 40px | 600 | 1.15 | -1.0px | Sub-section headlines |
-| `{typography.headline}` | 28px | 600 | 1.20 | -0.6px | Pricing tier titles, CTA banner heading |
-| `{typography.card-title}` | 22px | 500 | 1.25 | -0.4px | Feature card title |
-| `{typography.subhead}` | 20px | 400 | 1.40 | -0.2px | Lead body, intro paragraphs |
-| `{typography.body-lg}` | 18px | 400 | 1.50 | -0.1px | Hero subhead, lead paragraphs |
-| `{typography.body}` | 16px | 400 | 1.50 | -0.05px | Default body |
-| `{typography.body-sm}` | 14px | 400 | 1.50 | 0 | Card body, footer columns |
-| `{typography.caption}` | 12px | 400 | 1.40 | 0 | Captions, meta, status |
-| `{typography.button}` | 14px | 500 | 1.20 | 0 | All button labels |
-| `{typography.eyebrow}` | 13px | 500 | 1.30 | 0.4px | Section eyebrow (slight positive tracking) |
-| `{typography.mono}` | 13px | 400 | 1.50 | 0 | Linear Mono for code in product screenshots |
-
-### Principles
-
-- **Aggressive negative tracking on display** (-3.0px at 80px ≈ 4% of size).
-- **Single voice from display to body.** Display-xl at 600 → body at 400 — same family, narrower weights.
-- **Eyebrow uses positive tracking** (+0.4px) — contrast against the negative-tracked display marks the eyebrow as taxonomy.
-- **Mono only in code contexts.** Linear Mono lives inside product screenshots — not on marketing chrome.
-
-### Note on Font Substitutes
-
-Linear's custom typeface isn't publicly distributed; the documented fallback `SF Pro Display, -apple-system, system-ui` is the recommended substitute on macOS. For cross-platform implementation, **Inter** at weight 500 / 600 / 700 is the closest free substitute. **Geist Sans** is also viable. For mono, **JetBrains Mono** or **Geist Mono** at weight 400 closely approximates Linear Mono.
-
-## Layout
-
-### Spacing System
-
-- **Base unit**: 4px.
-- **Tokens (front matter)**: `{spacing.xxs}` 4px · `{spacing.xs}` 8px · `{spacing.sm}` 12px · `{spacing.md}` 16px · `{spacing.lg}` 24px · `{spacing.xl}` 32px · `{spacing.xxl}` 48px · `{spacing.section}` 96px.
-- Card interior padding: `{spacing.lg}` 24px on feature/pricing cards; `{spacing.xl}` 32px on testimonial cards; `{spacing.xxl}` 48px on CTA banners.
-- Pill button padding: 8px vertical · 14px horizontal — Linear's compact button spec.
-- Form input padding: 8px vertical · 12px horizontal.
-
-### Grid & Container
-
-- Max content width sits around 1280px.
-- Card grids are 3-up at desktop, 2-up at tablet, 1-up at mobile.
-- Pricing tier grid is 3-up; comparison strip below shows checkmarks per tier.
-- Product screenshot panels span full content width — they're the protagonist.
-
-### Whitespace Philosophy
-
-The dark canvas IS the whitespace. Sections separate by lift onto surface-1 panels, not by gaps in white. Within a panel, generous `{spacing.lg}` 24px gaps between content blocks; `{spacing.section}` 96px between sections.
-
-## Elevation & Depth
-
-| Level | Treatment | Use |
-|---|---|---|
-| 0 (flat) | No shadow, no border | Default for body type, hero text, footer |
-| 1 (charcoal lift) | `{colors.surface-1}` background on canvas, 1px `{colors.hairline}` | Default cards, product panels |
-| 2 (surface-2 lift) | `{colors.surface-2}` background, 1px `{colors.hairline-strong}` | Featured pricing card, hovered cards |
-| 3 (surface-3 lift) | `{colors.surface-3}` background | Sub-nav, dropdown menus |
-| 4 (focus ring) | 2px `{colors.primary-focus}` outline at 50% opacity | Focused input, focused button |
-
-Linear's depth is carried by surface ladder + hairline borders. The brand resists drop shadows on dark almost entirely.
-
-### Decorative Depth
-
-- **Product UI screenshots** dominate as decorative depth.
-- **No atmospheric gradients, no spotlight cards.**
-- **Subtle white edge highlight** on the top edge of lifted panels — gives the dark surface a faint "pixel rendered" feel.
-
-## Shapes
-
-### Border Radius Scale
+Panels are separated by lift, not by borders alone. Each step is small — the
+whole range lives in the bottom 10% of the scale, which is what makes it read as
+"expensive dark" rather than "grey app".
 
 | Token | Value | Use |
 |---|---|---|
-| `{rounded.xs}` | 4px | Small chips, status badges |
-| `{rounded.sm}` | 6px | Inline tags |
-| `{rounded.md}` | 8px | All buttons, form inputs |
-| `{rounded.lg}` | 12px | Pricing cards, feature cards, testimonial cards |
-| `{rounded.xl}` | 16px | Product screenshot panels |
-| `{rounded.xxl}` | 24px | Oversized CTA banners (rare) |
-| `{rounded.pill}` | 9999px | Pricing tab toggles, status pills |
-| `{rounded.full}` | 9999px | Avatar circles |
+| `--color-canvas` | `#000000` | The page. True black, deliberately. |
+| `--color-surface-1` | `#0a0908` | Panels sitting on the canvas. |
+| `--color-surface-2` | `#121110` | Wells inside panels — waveform beds, inputs. |
+| `--color-surface-3` | `#1a1815` | Raised controls, hover states. |
+| `--color-surface-4` | `#242019` | Pressed and selected states. |
 
-### Photography & Illustration Geometry
+The blacks are warm — a few points of red and green above blue. Next to gold, a
+neutral or cool black reads as dead grey.
 
-- Product UI screenshots dominate; they sit in `{rounded.xl}` 16px tiles with `{spacing.lg}` 24px outer padding.
-- Customer logo tiles render at small sizes (~24px logo height) on `{colors.canvas}` with no border.
-- Avatar circles in testimonial cards use `{rounded.full}` at 32–40px sizes.
+### Hairlines
+
+| Token | Value | Use |
+|---|---|---|
+| `--color-hairline` | `#231f18` | Default 1px separation. |
+| `--color-hairline-strong` | `#332c20` | Panel outlines, table headers. |
+| `--color-gold-line` | `rgba(212,175,55,0.28)` | Edge of anything active. |
+
+### Gold
+
+A real metal ramp, not one flat yellow. Metal reads as metal because it has a
+light side and a dark side.
+
+| Token | Value | Use |
+|---|---|---|
+| `--color-gold` | `#d4af37` | The base. Primary action, focus ring, brand. |
+| `--color-gold-bright` | `#f3d98b` | Highlight — the lit edge, hover, text on gold surfaces. |
+| `--color-gold-deep` | `#8a6d1f` | Shadow side of the metal, gradient ends, inactive gold. |
+| `--color-gold-glow` | `rgba(212,175,55,0.35)` | Focus rings and the halo under a playing deck. |
+
+A gold *button* is a gradient from `--color-gold-bright` to `--color-gold`, with
+`--color-gold-deep` as a 1px bottom edge, and black text. That three-part
+treatment is the whole trick — a flat `#d4af37` rectangle looks like mustard.
+
+### Deck identity
+
+Two tracks play at once during every blend and the user must tell them apart
+instantly. Gold alone cannot do that, so decks take the classic pairing:
+
+| Token | Value | Deck |
+|---|---|---|
+| `--color-deck-a` | `#e8c25a` | Gold. |
+| `--color-deck-b` | `#c8cdd6` | Platinum. |
+
+Permitted **only** on: the waveform stroke, the 6px deck dot, and the matching
+end of the crossfader. Never a fill, never a button, never body text.
+
+### Text
+
+| Token | Value | Use |
+|---|---|---|
+| `--color-ink` | `#f5f1e8` | Primary text. Warm white, not `#fff`. |
+| `--color-ink-muted` | `#c9c2b2` | Secondary text. |
+| `--color-ink-subtle` | `#8a8274` | Labels, metadata. |
+| `--color-ink-tertiary` | `#5c574d` | Disabled, placeholder, units. |
+
+Pure white on true black next to gold looks blue. Every ink value is warmed to
+sit in the same family as the metal.
+
+### Semantic
+
+| Token | Value | Use |
+|---|---|---|
+| `--color-success` | `#4a9e5c` | Analysed, connected, ready. |
+| `--color-warning` | `#d98324` | Mix point marker, clipping, over-length files. |
+
+Used sparingly enough that they never compete with gold for attention.
+
+---
+
+## Typography
+
+Two families. No third.
+
+- **`--font-sans`** — Inter. Everything that is language.
+- **`--font-mono`** — JetBrains Mono. Everything that is a measurement. BPM,
+  timecodes, levels, counts. Always `font-variant-numeric: tabular-nums`, so a
+  running clock does not jitter.
+
+### Scale
+
+| Token | Size | Use |
+|---|---|---|
+| `--text-display-lg` | 56px | Reserved. Empty states only. |
+| `--text-display-md` | 40px | The now-playing title. |
+| `--text-headline` | 28px | Section headings, onboarding. |
+| `--text-card-title` | 22px | Panel titles. |
+| `--text-subhead` | 20px | — |
+| `--text-body-lg` | 18px | — |
+| `--text-body` | 16px | Default. |
+| `--text-body-sm` | 14px | Table rows, secondary lines. |
+| `--text-caption` | 12px | Metadata. |
+| `--text-eyebrow` | 13px | Uppercase labels. **Positive** tracking, 0.14em. |
+| `--text-mono` | 13px | Readouts. |
+| `--text-mono-lg` | 22px | The big BPM figure. |
+
+Display and headline sizes take negative tracking; eyebrows take positive
+tracking and are set in `--color-ink-subtle`, or gold when the thing they label
+is live. That contrast — tight display type against wide, spaced small caps — is
+most of the "luxury" in the type system.
+
+---
+
+## Shape and depth
+
+- **Radius:** 4px on tags, 6px on buttons and inputs, 10px on panels, 14px on
+  the main deck panel. Nothing is ever a pill — hardware is not pill-shaped.
+- **The lit edge.** Every raised panel gets a 1px top highlight fading out at
+  both ends (`.edge-lit`). On true black this is what separates a panel from a
+  hole. Active panels use a gold-tinted version (`.edge-lit-gold`).
+- **The active glow.** The panel containing the playing deck carries a soft
+  `--color-gold-glow` outer shadow. It is the only shadow in the system, and it
+  exists to say "this is live", not to create depth.
+- **Inset wells.** Waveform beds and inputs sit at `--color-surface-2` with a 1px
+  `--color-hairline` and no top highlight — the absence of the lit edge is what
+  makes them read as recessed.
+
+---
 
 ## Components
 
 ### Buttons
 
-**`button-primary`** — Lavender CTA. The default primary CTA across all pages.
-- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.button}`, padding 8px 14px, rounded `{rounded.md}`.
-- Pressed state lives in `button-primary-pressed` (background shifts to `{colors.primary-focus}`).
-- Hover state lives in `button-primary-hover` (background shifts to `{colors.primary-hover}` lighter lavender).
+- **Primary** — the gold gradient described above, black text, 6px radius. There
+  is at most one on screen: *Start the set*.
+- **Secondary** — `--color-surface-3`, 1px `--color-hairline-strong`, warm white
+  text. Hover lifts to `--color-surface-4` and the border warms to
+  `--color-gold-line`.
+- **Segmented** (the mood control) — a `--color-surface-2` trough with the
+  selected segment raised to `--color-surface-4` and its label in gold.
+- Disabled is 35% opacity. Never a different colour.
 
-**`button-secondary`** — Charcoal button. Used for secondary CTAs ("Sign in", "Read changelog").
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.button}`, padding 8px 14px, rounded `{rounded.md}`. 1px `{colors.hairline}` border.
+### Panels
 
-**`button-tertiary`** — Plain text button.
-- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.button}`, rounded `{rounded.md}`, padding 8px 14px.
+`--color-surface-1`, 10px radius, 1px `--color-hairline`, `.edge-lit`. The deck
+panel is 14px, takes `.edge-lit-gold`, and gains the glow while playing.
 
-**`button-inverse`** — White-on-dark inverse CTA.
-- Background `{colors.inverse-canvas}`, text `{colors.inverse-ink}`, type `{typography.button}`, rounded `{rounded.md}`, padding 8px 14px.
+### The waveform bed
 
-### Pricing Tabs
+Full-bleed inside its panel, `--color-surface-2`, 1px hairline. Played audio is
+drawn at full deck colour; unplayed at 42% alpha. The beat grid is
+`--color-hairline` with bar lines at `--color-hairline-strong`. The playhead is
+a 1.5px `--color-ink` line dead centre. The mix point is a dashed
+`--color-warning` rule.
 
-**`pricing-tab-default`** + **`pricing-tab-selected`** — Pill-toggle on `/pricing`.
-- Default: `{colors.canvas}` background, `{colors.ink-subtle}` text, rounded `{rounded.pill}`, padding 6px 14px.
-- Selected: `{colors.surface-2}` background, `{colors.ink}` text — selected = surface lift.
+### Tables
 
-### Cards & Containers
+No zebra striping. 1px `--color-hairline` between rows, hover to
+`--color-surface-2`. Numeric columns are mono, right-aligned, tabular. Row
+actions appear on hover only.
 
-**`pricing-card`** — Each tier on `/pricing`.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.lg}`, padding 24px. 1px `{colors.hairline}` border.
+### Focus
 
-**`pricing-card-featured`** — Recommended tier — surface lift to surface-2.
-- Background `{colors.surface-2}`, otherwise identical structure.
-
-**`feature-card`** — Generic feature highlight tile.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.lg}`, padding 24px.
-
-**`product-screenshot-card`** — The dominant card type — frames a high-fidelity Linear app UI screenshot.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.xl}`, padding 24px.
-
-**`testimonial-card`** — Customer quote with avatar + name + role.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body-lg}`, rounded `{rounded.lg}`, padding 32px.
-
-**`customer-logo-tile`** — Small tile in the customer marquee.
-- Background `{colors.canvas}`, text `{colors.ink-subtle}`, type `{typography.caption}`, rounded `{rounded.xs}`, padding 16px.
-
-**`cta-banner`** — Closing CTA panel near page bottom.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.headline}`, rounded `{rounded.lg}`, padding 48px.
-
-### Inputs & Forms
-
-**`text-input`** + **`text-input-focused`** — Form fields on `/contact/sales` and signup overlays.
-- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.md}`, padding 8px 12px.
-- Focused state retains the same surface; the focus ring is a 2px `{colors.primary-focus}` outline at 50% opacity.
-
-### Status & Build Page
-
-**`changelog-row`** — Each row in `/build` (changelog page) listing version, date, and changes.
-- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.xs}`, padding 24px 0. 1px `{colors.hairline}` bottom rule.
-
-**`status-badge`** — Small status pill.
-- Background `{colors.surface-2}`, text `{colors.ink-muted}`, type `{typography.caption}`, rounded `{rounded.pill}`, padding 2px 8px.
-
-### Navigation
-
-**`top-nav`** — Sticky dark bar with the Linear wordmark left, primary nav links centered, and a `button-secondary` ("Sign in") + `button-primary` ("Get started") pair right.
-- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body-sm}`, height 56px.
-
-### Footer
-
-**`footer`** — Dense link grid on `{colors.canvas}` with the Linear wordmark left.
-- Background `{colors.canvas}`, text `{colors.ink-subtle}`, type `{typography.caption}`, padding 64px 32px.
-
-## Do's and Don'ts
-
-### Do
-
-- Reserve `{colors.canvas}` (#010102) as the system's anchor surface — the faint blue tint is intentional.
-- Use `{colors.primary}` lavender ONLY for: brand mark, primary CTA, focus ring, link emphasis.
-- Use the four-step surface ladder for hierarchy. Avoid skipping levels.
-- Pair display weight 600 with body weight 400 — Linear resists 700+ display weights.
-- Apply negative letter-spacing aggressively on display.
-- Use product UI screenshots as the protagonist of every section.
-- Compose CTAs as `{rounded.md}` 8px corners.
-
-### Don't
-
-- Don't ship a light-mode marketing page.
-- Don't use lavender as a section background or card fill.
-- Don't introduce a second chromatic accent (orange, pink, green for marketing).
-- Don't add atmospheric gradients or spotlight cards.
-- Don't pill-round CTAs.
-- Don't use `#000000` true black as the canvas.
-- Don't combine multiple bright accents in product screenshot mockups.
-
-## Responsive Behavior
-
-### Breakpoints
-
-| Name | Width | Key Changes |
-|---|---|---|
-| Desktop-XL | 1440px | Default desktop layout |
-| Desktop | 1280px | Card grid 3-up maintained |
-| Tablet | 1024px | Card grid 3-up → 2-up |
-| Mobile-Lg | 768px | Pricing comparison becomes accordion; nav hamburger |
-| Mobile | 480px | Single-column; display-xl scales 80px → ~36px |
-
-### Touch Targets
-
-- CTAs hold ≥40px tap height across viewports.
-- Pricing tab pills hold ≥36px tap height; touch viewports grow to ≥44px.
-- Form inputs hold ≥44px tap target on touch.
-
-### Collapsing Strategy
-
-- **Top nav**: links collapse to hamburger below 768px.
-- **Card grids**: 3-up → 2-up at 1024px → 1-up below 768px.
-- **Pricing comparison**: per-tier accordion below 768px.
-- **Display type**: `{typography.display-xl}` 80px scales toward `{typography.display-md}` 40px on mobile.
-
-### Image Behavior
-
-- Product UI screenshots maintain aspect ratio and never crop.
-- Customer logos in the marquee may collapse from 6-up to 3-up below 768px.
-
-## Iteration Guide
-
-1. Focus on ONE component at a time and reference it by its `components:` token name.
-2. When introducing a section, decide first which surface lift it lives on.
-3. Default body to `{typography.body}` at weight 400.
-4. Run `npx @google/design.md lint DESIGN.md` after edits.
-5. Add new variants as separate component entries.
-6. Treat lavender as scarce: brand mark, primary CTA, focus, link emphasis.
-7. Lead every section with a product UI screenshot.
-
-## Known Gaps
-
-- The four-step surface ladder values are extracted directly from Linear's `--color-bg-level-3`, `--color-line-tint`, etc. CSS variables; they are Linear's canonical surface spec.
-- Form-field error and validation styling is not visible on the inspected pages.
-- Light mode is not documented because the marketing site does not ship a light theme.
-- Linear's actual product UI uses a richer color-tag palette (red, orange, yellow, green, blue, purple) for issue priorities and project labels — those colors live in the in-product surfaces shown in mockups.
-- The custom display, text, and mono families are proprietary; an open-source substitute is acceptable.
+One treatment everywhere: a 2px `--color-gold-glow` ring at 2px offset. It is
+never removed, on any control.
 
 ---
 
-## Adaptations for this app
+## Do
 
-The spec above is the Linear system as documented. Auto DJ follows it, with the
-deviations recorded here. Anything not listed is not a licence to deviate — if
-you need a new colour or radius, add it to this list with a reason first.
+- Let large areas be black and empty.
+- Put gold on the thing that is currently happening.
+- Set every number in tabular mono.
+- Warm every neutral — blacks, whites and greys all lean amber.
+- Use the surface ladder for hierarchy before reaching for a border.
 
-### 1. Surface ladder hex values
+## Don't
 
-Carried over unchanged from the sibling Job Tracker app so the two look like
-one family: canvas `#010102` → surface-1 `#08090a` → surface-2 `#0f1011` →
-surface-3 `#141516` → surface-4 `#1c1d1f`, with hairlines at `#23252a` /
-`#2c2e33` / `#34363c`.
+- Fill a panel, card or table row with gold.
+- Put body text on a gold background, or gold body text on black.
+- Add a second accent colour. Deck platinum and the two semantic colours are the
+  entire remaining palette.
+- Use drop shadows for depth. The only shadow is the live-deck glow.
+- Use pure `#ffffff` or pure grey anywhere.
+- Animate anything that is not representing live audio.
 
-### 2. Deck colours — a sanctioned second palette
+---
 
-Lavender (`--color-primary`) stays scarce: primary CTA, focus ring, brand mark,
-links. But an auto-DJ has two decks playing at once, and the user must be able
-to tell at a glance which waveform is the track going out and which is the one
-coming in. Lavender cannot carry that — it would either dilute the brand colour
-or leave the two decks indistinguishable.
+## Responsive
 
-Deck A is `#4cc2ff`, deck B is `#f0883e`. They are permitted **only** on:
+The app is a full-viewport shell, not a page: fixed header, scrolling library,
+fixed deck column.
 
-- the waveform stroke for that deck
-- the 6px deck-label dot
-- the corresponding end of the crossfader track
+- **≥1024px** — two columns, library left, deck column right at 420px.
+- **768–1023px** — single column, deck panel first, library beneath it.
+- **<768px** — same, with the library table dropping its BPM and length columns.
+  The deck panel never collapses; it is the app.
 
-They are never a fill, never a button, never text. Same discipline as the Job
-Tracker's stage colours.
+Touch targets are 44px minimum. Wide content scrolls inside its own container —
+the page body never scrolls sideways.
 
-### 3. Canvas rendering sits outside the token system
+---
 
-Waveforms, the spectrum and the VU meters are drawn on `<canvas>`, where CSS
-custom properties don't apply. Those modules read the tokens once via
-`getComputedStyle(document.documentElement).getPropertyValue('--color-deck-a')`
-and cache them — they still must not hard-code a hex.
+## Dark mode only
 
-### 4. Dark mode only
-
-There is no light theme and none is planned. A dark room is where this app gets
-used.
-
-### 5. Full-height app shell, no marketing rhythm
-
-The Linear spec's "96px between sections" and "lead every section with a
-product screenshot" describe a marketing site. This is a single full-viewport
-application shell: a fixed header, a scrolling library pane and a fixed deck
-panel. Section rhythm is replaced by a 16/24px panel gutter.
+There is no light theme and none is planned. A dark room is where this gets
+used, and the entire palette is built on true black.

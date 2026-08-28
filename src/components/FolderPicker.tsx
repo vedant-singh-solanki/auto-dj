@@ -35,7 +35,7 @@ export function FolderPicker() {
         dragging ? 'border-primary bg-surface-2' : 'border-hairline-strong bg-surface-1'
       }`}
     >
-      <div className="mx-auto mb-4 h-8 w-8 rounded-md bg-primary" />
+      <div className="btn-gold mx-auto mb-5 h-9 w-9 rounded-sm" />
       <h2 className="text-headline text-ink">
         {needsReconnect ? 'Welcome back' : 'Point it at your music'}
       </h2>
@@ -50,7 +50,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={() => void reconnectFolder()}
-            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
           >
             Reconnect "{folderName}"
           </button>
@@ -58,7 +58,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={() => void connectFolder()}
-            className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
           >
             Choose music folder
           </button>
@@ -67,7 +67,7 @@ export function FolderPicker() {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="rounded-md bg-primary px-4 py-2 text-button text-on-primary transition-colors hover:bg-primary-hover"
+              className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
             >
               Choose music files
             </button>
@@ -87,7 +87,7 @@ export function FolderPicker() {
         ref={inputRef}
         type="file"
         multiple
-        accept="audio/*"
+        accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.aac,.wav,.flac,.ogg,.opus"
         className="hidden"
         onChange={(event) => {
           if (event.target.files?.length) void importDroppedFiles(event.target.files);

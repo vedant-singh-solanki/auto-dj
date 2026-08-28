@@ -44,7 +44,7 @@ export function LiveBar({ get, className = '' }: { get: () => number; className?
   }, [get]);
 
   return (
-    <div className="h-1 w-full overflow-hidden rounded-xs bg-surface-3">
+    <div className="h-1 w-full overflow-hidden rounded-xs bg-surface-2">
       <div ref={ref} className={`h-full ${className}`} style={{ width: '0%' }} />
     </div>
   );

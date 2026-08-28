@@ -8,8 +8,12 @@ import { WaveformCanvas } from './WaveformCanvas';
 import { useArtwork } from './useArtwork';
 
 /**
- * The track the audience is hearing: cover, title, live clock, live tempo and
- * the scrolling waveform of the deck that is front of house.
+ * The deck the audience is hearing, and the centrepiece of the app: cover,
+ * title, live tempo, live clock, and the scrolling waveform.
+ *
+ * This is the one panel that carries the gold treatment — the lit gold edge and
+ * the glow — because it is the thing that is actually live. See DESIGN.md:
+ * gold marks what is happening, it does not decorate.
  */
 export function NowPlaying({ loaded }: { loaded: LoadedTrack }) {
   const artwork = useArtwork(loaded.track);
@@ -21,46 +25,55 @@ export function NowPlaying({ loaded }: { loaded: LoadedTrack }) {
   const duration = loaded.analysis.durationSec;
 
   return (
-    <section className="rounded-lg border border-hairline bg-surface-1 p-4 edge-lit">
-      <div className="flex items-start gap-4">
+    <section className="edge-lit edge-lit-gold deck-glow rounded-xl border border-hairline-strong bg-surface-1 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-xs" style={{ background: deckColor }} />
+          <span className="text-eyebrow uppercase text-gold">Now playing</span>
+          <span className="text-eyebrow uppercase text-ink-tertiary">· deck {engine.liveDeckId}</span>
+        </div>
+        <div className="font-mono text-mono text-ink-tertiary">
+          <LiveText get={useCallback(() => clock(position()), [position])} className="text-ink-muted" />
+          {` / ${clock(duration)}`}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-start gap-4">
         {artwork ? (
-          <img src={artwork} alt="" className="h-16 w-16 shrink-0 rounded-md object-cover" />
+          <img src={artwork} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
         ) : (
-          <div className="h-16 w-16 shrink-0 rounded-md bg-surface-3" />
+          <div className="well h-20 w-20 shrink-0 rounded-lg" />
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-xs" style={{ background: deckColor }} />
-            <span className="text-eyebrow uppercase text-ink-tertiary">
-              Now playing · deck {engine.liveDeckId}
-            </span>
-          </div>
           <h2 className="truncate text-card-title text-ink">{loaded.track.title}</h2>
           <p className="truncate text-body-sm text-ink-subtle">
             {loaded.track.artist}
             {loaded.track.album ? ` — ${loaded.track.album}` : ''}
           </p>
-        </div>
 
-        <div className="shrink-0 text-right">
-          <div className="font-mono text-mono text-ink">
-            <LiveText get={useCallback(() => bpmLabel(loaded.analysis.bpm, engine.liveDeck.playbackRate), [loaded, engine])} />
-            <span className="text-ink-tertiary"> BPM</span>
-          </div>
-          <div className="font-mono text-mono text-ink-subtle">
-            <LiveText get={useCallback(() => clock(position()), [position])} />
-            <span className="text-ink-tertiary"> / {clock(duration)}</span>
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <LiveText
+              get={useCallback(
+                () => bpmLabel(loaded.analysis.bpm, engine.liveDeck.playbackRate),
+                [loaded, engine],
+              )}
+              className="font-mono text-mono-lg text-gold"
+            />
+            <span className="text-eyebrow uppercase text-ink-tertiary">bpm</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-3">
-        <LiveBar get={useCallback(() => position() / Math.max(1, duration), [position, duration])} className="bg-primary" />
+      <div className="mt-4">
+        <LiveBar
+          get={useCallback(() => position() / Math.max(1, duration), [position, duration])}
+          className="bg-gold"
+        />
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-md border border-hairline bg-surface-2">
-        <WaveformCanvas which="live" height={104} />
+      <div className="well mt-4 overflow-hidden rounded-lg">
+        <WaveformCanvas which="live" height={112} />
       </div>
     </section>
   );
