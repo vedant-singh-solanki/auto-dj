@@ -1,5 +1,13 @@
 import type { Analysis, Mood, Track, TrackId } from '../../types';
-import { ARTIST_WINDOW, MAX_TEMPO_STRETCH, ROTATION_WINDOW, tooLongToMix } from '../constants';
+import {
+  ARTIST_WINDOW,
+  MAX_TEMPO_STRETCH,
+  ROTATION_WINDOW,
+  SET_CLIMB_MIN,
+  SET_OPENING_ENERGY,
+  SET_PEAK_ENERGY,
+  tooLongToMix,
+} from '../constants';
 import { matchRate } from '../audio/transition';
 
 /**
@@ -29,6 +37,8 @@ export interface SelectionInput {
   playedIds: TrackId[];
   /** Newest first. */
   playedArtists: string[];
+  /** Minutes since the set started, for the energy arc. */
+  setElapsedMin: number;
   /** Whether the file behind a track can actually be read right now. */
   isAvailable: (id: TrackId) => boolean;
 }
@@ -48,11 +58,28 @@ function tempoScore(current: Analysis | null, candidate: Analysis | undefined): 
   return 1 - (Math.abs(rate - 1) / MAX_TEMPO_STRETCH) * 0.4;
 }
 
-/** 1 when the track sits exactly where the mood asks for. */
-function energyScore(current: Analysis | null, candidate: Analysis | undefined, mood: Mood): number {
+/**
+ * Where the set should sit on the energy scale this far in. A live set goes
+ * somewhere across a night instead of holding one level all evening.
+ */
+export function arcTarget(elapsedMin: number): number {
+  const climb = Math.max(0, Math.min(1, elapsedMin / SET_CLIMB_MIN));
+  return SET_OPENING_ENERGY + (SET_PEAK_ENERGY - SET_OPENING_ENERGY) * climb;
+}
+
+/** 1 when the track sits exactly where the arc and the mood ask for. */
+function energyScore(
+  current: Analysis | null,
+  candidate: Analysis | undefined,
+  mood: Mood,
+  elapsedMin: number,
+): number {
   if (!candidate) return 0.5;
-  const base = current?.energyScore ?? candidate.energyScore;
-  const target = Math.max(0, Math.min(1, base + MOOD_SHIFT[mood]));
+  const arc = arcTarget(elapsedMin);
+  // Weighted towards the arc so the set climbs, but anchored to where it
+  // actually is so it does not lurch from one track to the next.
+  const continuity = current?.energyScore ?? arc;
+  const target = Math.max(0, Math.min(1, 0.6 * arc + 0.4 * continuity + MOOD_SHIFT[mood]));
   return 1 - Math.min(1, Math.abs(candidate.energyScore - target) / 0.5);
 }
 
@@ -68,7 +95,7 @@ export function scoreTrack(track: Track, input: SelectionInput): ScoredTrack | n
   if (tooLongToMix(analysis?.durationSec ?? track.durationSec)) return null;
 
   const tempo = tempoScore(input.current, analysis);
-  const energy = energyScore(input.current, analysis, input.mood);
+  const energy = energyScore(input.current, analysis, input.mood, input.setElapsedMin);
 
   let score = 0.55 * tempo + 0.45 * energy;
   if (!analysis) score *= UNANALYSED_PENALTY;

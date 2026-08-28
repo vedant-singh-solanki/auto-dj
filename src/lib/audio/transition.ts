@@ -1,5 +1,13 @@
 import type { Analysis, MixKind } from '../../types';
-import { CONFIDENCE_FLOOR, DEFAULT_MIX_BEATS, MAX_TEMPO_STRETCH } from '../constants';
+import {
+  CONFIDENCE_FLOOR,
+  DEFAULT_MIX_BEATS,
+  MAX_TEMPO_STRETCH,
+  PHRASE_BEATS,
+  SEGMENT_MAX_SEC,
+  SEGMENT_MIN_SEC,
+  SEGMENT_TARGET_SEC,
+} from '../constants';
 import { BASS_CUT_DB, type Deck } from './deck';
 
 /**
@@ -15,7 +23,7 @@ const MIN_LEAD_SEC = 1.5;
 /** Shortest blend we will ever perform, for tracks that end abruptly. */
 const MIN_MIX_SEC = 2;
 /** Plain crossfades ignore the beat grid and just take this long. */
-const PLAIN_MIX_SEC = 8;
+const PLAIN_MIX_SEC = 5;
 
 export interface MixPlan {
   kind: MixKind;
@@ -74,6 +82,34 @@ export interface MixInput {
   beats?: number;
 }
 
+/**
+ * Where the outgoing track starts handing over, in its own seconds.
+ *
+ * A live DJ gives a track its hook and then moves — roughly a minute and a
+ * quarter, not five minutes. The segment is snapped to whole musical phrases so
+ * the handover lands on a phrase boundary rather than halfway through a bar,
+ * which means the real length varies a little with tempo. That variation is
+ * welcome: a set where every track lasts exactly 75 seconds sounds mechanical.
+ *
+ * This is the single source of truth for the handover point. The mixer uses it
+ * to schedule, and the control loop uses it to know when to start preparing —
+ * if the two disagreed, tracks would either be cut short or overrun.
+ */
+export function handoverAt(analysis: Analysis): number {
+  const beat = beatSec(analysis);
+  const phrase = beat * PHRASE_BEATS;
+  const blendSpan = beat * DEFAULT_MIX_BEATS;
+
+  let segment = Math.max(1, Math.round(SEGMENT_TARGET_SEC / phrase)) * phrase;
+  if (segment < SEGMENT_MIN_SEC) segment = Math.ceil(SEGMENT_MIN_SEC / phrase) * phrase;
+  if (segment > SEGMENT_MAX_SEC) segment = Math.max(phrase, Math.floor(SEGMENT_MAX_SEC / phrase) * phrase);
+
+  // The blend occupies the tail of the segment, and never runs past the point
+  // where the track's body stops.
+  const handover = Math.min(analysis.hookSec + segment, analysis.mixOutSec) - blendSpan;
+  return Math.max(analysis.hookSec + blendSpan, handover);
+}
+
 export function planMix(input: MixInput): MixPlan {
   const { outgoing, outgoingRate, outgoingPositionSec, incoming, contextNow, immediate } = input;
 
@@ -97,14 +133,18 @@ export function planMix(input: MixInput): MixPlan {
   }
 
   const latest = Math.max(earliest, outgoing.durationSec - spanInTrack);
-  let startInTrack = immediate ? earliest : Math.max(earliest, outgoing.mixOutSec - spanInTrack);
+  let startInTrack = immediate ? earliest : Math.max(earliest, handoverAt(outgoing));
   startInTrack = Math.min(startInTrack, latest);
   if (kind === 'beatmatched') startInTrack = Math.min(snapToBar(outgoing, startInTrack), latest);
 
-  let offsetSec = incoming.mixInSec;
+  // Come in at the hook, not at bar one. This is the difference between a set
+  // and a playlist.
+  let offsetSec = incoming.hookSec;
   if (kind === 'beatmatched') offsetSec = snapToBar(incoming, offsetSec);
-  // Never skip more than the first quarter of a track looking for a downbeat.
-  offsetSec = Math.min(offsetSec, incoming.durationSec * 0.25);
+  // But never so late that there is no track left to play — and never earlier
+  // than where the track actually starts making sound.
+  const latestEntry = Math.max(incoming.mixInSec, incoming.durationSec - SEGMENT_MIN_SEC);
+  offsetSec = Math.max(0, Math.min(offsetSec, latestEntry));
 
   return {
     kind,

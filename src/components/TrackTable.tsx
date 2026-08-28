@@ -25,6 +25,7 @@ export function TrackTable() {
   const tracks = useApp((s) => s.tracks);
   const analyses = useApp((s) => s.analyses);
   const status = useApp((s) => s.status);
+  const unplayable = useApp((s) => s.unplayable);
   const { start, queueNext } = useApp.getState();
 
   const [query, setQuery] = useState('');
@@ -90,7 +91,8 @@ export function TrackTable() {
             {rows.slice(0, MAX_ROWS).map((track) => {
               const analysis = analyses.get(track.id);
               const tooLong = tooLongToMix(durationOf(track, analysis));
-              const available = track.supported && hasSource(track.id) && !tooLong;
+              const broken = unplayable.has(track.id);
+              const available = track.supported && hasSource(track.id) && !tooLong && !broken;
               return (
                 <tr key={track.id} className="group border-b border-hairline last:border-0 hover:bg-surface-2">
                   <td className="max-w-0 px-3 py-2">
@@ -114,7 +116,13 @@ export function TrackTable() {
                       </button>
                     ) : (
                       <span className="text-caption text-ink-tertiary">
-                        {tooLong ? 'too long to mix' : track.supported ? 'reconnect folder' : 'unsupported file'}
+                        {broken
+                          ? 'would not play'
+                          : tooLong
+                            ? 'too long to mix'
+                            : track.supported
+                              ? 'reconnect folder'
+                              : 'unsupported file'}
                       </span>
                     )}
                   </td>

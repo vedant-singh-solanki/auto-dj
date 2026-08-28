@@ -39,3 +39,17 @@ export function playedAgo(id: TrackId): number {
 export function artistPlayedAgo(artist: string): number {
   return recentArtists.indexOf(artist);
 }
+
+/* -- The set clock --------------------------------------------------------- */
+
+let setStartedAt = 0;
+
+/** Called when a set begins, so the energy arc has something to measure from. */
+export function startSet(): void {
+  setStartedAt = Date.now();
+}
+
+/** Minutes since the set started. Zero before anything has played. */
+export function setElapsedMin(): number {
+  return setStartedAt === 0 ? 0 : (Date.now() - setStartedAt) / 60000;
+}

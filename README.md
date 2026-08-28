@@ -1,8 +1,9 @@
 # Auto DJ
 
-A DJ that plays your own music files and mixes them together — beat-matched,
-with the bass swapped over so two tracks never turn to mud. It runs entirely
-inside your browser. **Your music is never uploaded anywhere.**
+A DJ that plays your own music files and mixes them like a live set: it comes in
+at each track's hook, gives it about a minute and a quarter, then blends out on
+the beat with the bass swapped over so two tracks never turn to mud. It runs
+entirely inside your browser. **Your music is never uploaded anywhere.**
 
 Point it at the folder your music lives in, press start, and it keeps going on
 its own: it picks what comes next and blends it in over the outro of what is
@@ -14,7 +15,12 @@ playing. Skip if you disagree, or nudge it with *Cool down* / *Hold* / *Lift*.
 remember it for next time. Firefox and Safari still work, but you have to drag
 your music onto the page each visit.
 
-Playable: `mp3`, `m4a`, `aac`, `wav`, `flac`, `ogg`, `opus`.
+Playable: `mp3`, `mp4`, `m4a`, `m4v`, `aac`, `wav`, `flac`, `ogg`, `opus`.
+
+`mp4` and `m4v` are video files, and they work: a lot of music arrives as a
+downloaded video, so the app pulls the audio track out and ignores the picture.
+A 720p music video mixes exactly like an mp3.
+
 Listed but not playable: `wma` and a few others no browser can decode.
 
 Anything **over 20 minutes** is listed but never played, and is marked "too long
@@ -77,24 +83,41 @@ from the browser console. Neither exists in a build.
 
 ## How it works
 
+It is built to behave like a DJ playing a live set, not like a playlist with
+nice transitions. That distinction drives most of the decisions below.
+
 - **Nothing leaves your computer.** The page reads the audio files directly off
   your disk with your permission, decodes them in memory, and stores only what
   it worked out about them — tempo, waveform shape, loudness — in your browser.
 - **Analysis** happens in a Web Worker: waveform peaks for the display, an
-  energy curve to find the intro and outro, a loudness figure so two tracks
-  arrive at the mixer sounding equally loud, and a confidence score for how much
-  to trust the detected beat grid.
+  energy curve, a loudness figure so two tracks arrive at the mixer sounding
+  equally loud, a confidence score for how much to trust the detected beat grid,
+  and the position of the track's **hook**.
+- **It comes in at the hook.** A DJ playing live does not start a record at bar
+  one and let it run for five minutes. The analyser slides a window across the
+  energy curve to find the biggest sustained section — the drop, or the chorus —
+  and the set enters there.
+- **Each track gets about 70–80 seconds.** Long enough to land, short enough to
+  keep moving. The exact figure is snapped to whole musical phrases, so it varies
+  a little with tempo; a set where every track lasted exactly 75 seconds would
+  sound mechanical.
 - **Mixing** runs on two decks through a shared limiter. The incoming track is
   pitched up to ±8% to match tempo (half and double time count as a match), its
   first downbeat is scheduled to land exactly on a downbeat of the outgoing
-  track, and the two are crossfaded over 32 beats while the bass hands over in
-  the middle. When the tempos cannot meet, or the beat grid is not trustworthy,
-  it falls back to a plain crossfade rather than making a track sound wrong.
+  track, and the two are crossfaded over 16 beats — four bars, short and punchy —
+  while the bass hands over in the middle. When the tempos cannot meet, or the
+  beat grid is not trustworthy, it falls back to a plain crossfade rather than
+  making a track sound wrong.
 - **After each mix** the new track slides gently back to its own tempo, so a long
   set can travel rather than staying stuck at the speed of whatever started it.
+- **The set builds.** Target energy climbs from moderate to peak across the first
+  45 minutes and then holds, the way a night does. *Cool down* / *Hold* / *Lift*
+  override it whenever you disagree.
 - **Choosing what is next** is plain arithmetic, not a model: tempo
   compatibility, energy against the mood setting, and how recently the track and
   the artist were played. It picks with weighted randomness from the top of the
   list, so the same folder does not produce the same set twice.
 
-See `DESIGN.md` for the visual rules.
+The look is black and gold — a booth, not a dashboard. `DESIGN.md` has the
+rules; the short version is that gold marks whatever is live and never fills a
+surface.

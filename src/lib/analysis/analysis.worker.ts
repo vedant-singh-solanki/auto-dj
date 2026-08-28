@@ -8,7 +8,7 @@
  * Kept off the main thread because a five-minute track is ~13 million samples
  * per channel and the waveform must never stutter.
  */
-import { ENERGY_PER_SECOND, PEAKS_PER_SECOND } from '../constants';
+import { ENERGY_PER_SECOND, HOOK_WINDOW_SEC, PEAKS_PER_SECOND, SEGMENT_MIN_SEC } from '../constants';
 
 export interface AnalyzeRequest {
   id: string;
@@ -28,6 +28,7 @@ export interface AnalyzeResult {
   bpmConfidence: number;
   mixInSec: number;
   mixOutSec: number;
+  hookSec: number;
 }
 
 /** Onset envelope resolution. 512 samples is about 12ms — fine enough for a kick. */
@@ -156,6 +157,54 @@ function findMixPoints(energy: Float32Array, durationSec: number): { mixInSec: n
   return { mixInSec, mixOutSec };
 }
 
+/**
+ * Finds the hook: the start of the track's biggest sustained section.
+ *
+ * A DJ playing live comes in at the drop or the chorus, not at bar one — that
+ * is most of what makes a set sound like a set rather than a playlist. So slide
+ * a window across the energy curve, take the loudest sustained stretch, then
+ * walk backwards to where that stretch actually begins.
+ *
+ * Deliberately conservative: a track whose energy never really varies (a lot of
+ * hip hop, most Bollywood) has no obvious drop, and for those this lands close
+ * to the end of the intro, which is the right answer anyway.
+ */
+function findHook(energy: Float32Array, mixInSec: number, mixOutSec: number): number {
+  const first = Math.floor(mixInSec * ENERGY_PER_SECOND);
+  const last = Math.floor(mixOutSec * ENERGY_PER_SECOND);
+  const window = Math.round(HOOK_WINDOW_SEC * ENERGY_PER_SECOND);
+  if (last - first <= window) return mixInSec;
+
+  // Leave a whole segment after the hook. Some tracks — a lot of afro house —
+  // genuinely peak in their final thirty seconds, and entering there would give
+  // the set a few bars before it had to move on again.
+  const minTail = Math.round(SEGMENT_MIN_SEC * ENERGY_PER_SECOND);
+  const latestStart = Math.max(first, last - Math.max(window, minTail));
+
+  let bestStart = first;
+  let bestMean = -1;
+  let sum = 0;
+  for (let i = first; i < first + window; i += 1) sum += energy[i];
+
+  for (let start = first; start <= latestStart; start += 1) {
+    const mean = sum / window;
+    // Ties go to the earlier window: given two equally big sections, the first
+    // one is the one the listener is waiting for.
+    if (mean > bestMean + 0.01) {
+      bestMean = mean;
+      bestStart = start;
+    }
+    sum += (energy[start + window] ?? 0) - energy[start];
+  }
+
+  // Walk back to where the section starts, rather than into the middle of it.
+  const entryThreshold = bestMean * 0.82;
+  let entry = bestStart;
+  while (entry > first && energy[entry - 1] >= entryThreshold) entry -= 1;
+
+  return entry / ENERGY_PER_SECOND;
+}
+
 self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
   const { id, channels, sampleRate, bpm, beatOffset } = event.data;
   const mono = downmix(channels);
@@ -190,6 +239,7 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
 
   const bpmConfidence = gridConfidence(onsetEnvelope(mono), sampleRate, bpm, beatOffset, durationSec);
   const { mixInSec, mixOutSec } = findMixPoints(energy, durationSec);
+  const hookSec = findHook(energy, mixInSec, mixOutSec);
 
   const result: AnalyzeResult = {
     id,
@@ -201,6 +251,7 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
     bpmConfidence,
     mixInSec,
     mixOutSec,
+    hookSec,
   };
   (self as unknown as Worker).postMessage(result, [peaks.buffer, energy.buffer]);
 };

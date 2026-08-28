@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Analysis, Mood, Track, TrackId } from './types';
 import { audioContext, resumeAudio } from './lib/audio/context';
 import { type EngineTransition, mixEngine } from './lib/audio/engine';
+import { handoverAt } from './lib/audio/transition';
 import type { LoadedTrack } from './lib/audio/deck';
 import { enqueueBackground, onAnalyzed } from './lib/analysis/queue';
 import { allAnalysis, allTracks } from './lib/library/db';
@@ -13,9 +14,9 @@ import {
   restoreFolder,
   supportsFolderPicker,
 } from './lib/library/pickFolder';
-import { chooseNext, mixStartsAt, prepareTrack } from './lib/dj/autoDj';
-import { loadHistory, recordPlayed } from './lib/dj/history';
-import { PRELOAD_LEAD_SEC } from './lib/constants';
+import { chooseNext, prepareTrack } from './lib/dj/autoDj';
+import { loadHistory, recordPlayed, startSet } from './lib/dj/history';
+import { PREPARE_LEAD_SEC } from './lib/constants';
 
 /**
  * All application state, and the auto-DJ control loop that drives it.
@@ -46,6 +47,9 @@ let analysisInbox: Analysis[] = [];
 /** Start scheduling the blend this many seconds before it is due. */
 const SCHEDULE_AHEAD_SEC = 2.5;
 
+/** How many candidates to try before reporting that a set could not start. */
+const START_ATTEMPTS = 5;
+
 interface AppState {
   supportsPicker: boolean;
   folderStatus: FolderStatus;
@@ -54,6 +58,8 @@ interface AppState {
 
   tracks: Track[];
   analyses: Map<TrackId, Analysis>;
+  /** Files that would not decode this session. Kept out of the rotation. */
+  unplayable: Set<TrackId>;
 
   status: PlaybackStatus;
   nowPlaying: LoadedTrack | null;
@@ -91,6 +97,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   tracks: [],
   analyses: new Map(),
+  unplayable: new Set(),
 
   status: 'idle',
   nowPlaying: null,
@@ -162,20 +169,45 @@ export const useApp = create<AppState>((set, get) => ({
 
     try {
       await resumeAudio();
-      const chosen = trackId
-        ? state.tracks.find((track) => track.id === trackId)
-        : chooseNext({ tracks: state.tracks, analyses: state.analyses, current: null, mood: state.mood })?.track;
+      startSet();
 
-      if (!chosen) {
-        set({ status: 'idle', error: 'There are no playable tracks yet. Choose a music folder to get started.' });
-        return;
+      // A real library contains the odd broken or mislabelled file. Try a few
+      // candidates before admitting defeat, rather than letting the first bad
+      // one stop the set from starting at all.
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < START_ATTEMPTS; attempt += 1) {
+        const requested = attempt === 0 && trackId;
+        const chosen = requested
+          ? get().tracks.find((track) => track.id === trackId)
+          : chooseNext({
+              tracks: get().tracks,
+              analyses: get().analyses,
+              current: null,
+              mood: get().mood,
+              unplayable: get().unplayable,
+            })?.track;
+
+        if (!chosen) break;
+
+        try {
+          const loaded = await prepareTrack(chosen);
+          mergeAnalysis(set, loaded.analysis);
+          await mixEngine().startFirst(loaded);
+          recordPlayed(chosen);
+          set({ status: 'playing', nowPlaying: loaded, upNext: null, transition: null });
+          return;
+        } catch (error) {
+          lastError = error;
+          markUnplayable(set, get, chosen.id);
+        }
       }
 
-      const loaded = await prepareTrack(chosen);
-      mergeAnalysis(set, loaded.analysis);
-      await mixEngine().startFirst(loaded);
-      recordPlayed(chosen);
-      set({ status: 'playing', nowPlaying: loaded, upNext: null, transition: null });
+      set({
+        status: 'idle',
+        error: lastError
+          ? messageFor(lastError)
+          : 'There are no playable tracks yet. Choose a music folder to get started.',
+      });
     } catch (error) {
       set({ status: 'idle', error: messageFor(error) });
     }
@@ -258,16 +290,21 @@ export const useApp = create<AppState>((set, get) => ({
       return;
     }
 
-    const analysis = state.nowPlaying.analysis;
     const deck = engine.liveDeck;
     const position = deck.positionAt(engine.now);
 
-    if (!preparedNext && !preparing && engine.timeLeftOnLive() < PRELOAD_LEAD_SEC) {
+    // Both decisions hang off the same handover point. Timing them off the end
+    // of the track instead would never fire: a set plays a track's hook and
+    // moves on with minutes of it still unplayed.
+    const secondsToHandover =
+      (handoverAt(state.nowPlaying.analysis) - position) / Math.max(0.01, deck.playbackRate);
+
+    if (!preparedNext && !preparing && secondsToHandover < PREPARE_LEAD_SEC) {
       void prepareUpNext(set, get);
       return;
     }
 
-    if (preparedNext && position >= mixStartsAt(analysis) - SCHEDULE_AHEAD_SEC) {
+    if (preparedNext && secondsToHandover <= SCHEDULE_AHEAD_SEC) {
       beginMix(set, preparedNext, false);
     }
   },
@@ -316,6 +353,7 @@ async function prepareUpNext(set: Setter, get: Getter): Promise<void> {
         analyses: state.analyses,
         current: state.nowPlaying?.analysis ?? null,
         mood: state.mood,
+        unplayable: state.unplayable,
       });
   if (!choice) return;
 
@@ -325,10 +363,13 @@ async function prepareUpNext(set: Setter, get: Getter): Promise<void> {
     preparedNext = await prepareTrack(choice.track);
     mergeAnalysis(set, preparedNext.analysis);
     set({ upNext: { track: choice.track, reason: choice.reason, ready: true } });
-  } catch (error) {
-    // A file that cannot be read must not stall the set — pick a different one.
+  } catch {
+    // A file that will not decode is dropped from the rotation and the next
+    // tick picks something else. No banner: the set carries on, and the library
+    // row says why that track is greyed out.
     preparedNext = null;
-    set({ upNext: null, error: messageFor(error) });
+    markUnplayable(set, get, choice.track.id);
+    set({ upNext: null });
   } finally {
     preparing = false;
   }
@@ -341,3 +382,14 @@ function beginMix(set: Setter, loaded: LoadedTrack, immediate: boolean): void {
   set({ transition });
 }
 
+
+/**
+ * Records that a file would not decode, so nothing picks it again this session.
+ * Not persisted — a file that gets repaired or replaced deserves another go
+ * next time the app opens.
+ */
+function markUnplayable(set: Setter, get: Getter, id: TrackId): void {
+  const next = new Set(get().unplayable);
+  next.add(id);
+  set({ unplayable: next });
+}

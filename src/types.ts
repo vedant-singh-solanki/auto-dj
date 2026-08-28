@@ -34,7 +34,7 @@ export interface Track {
 }
 
 /** Bump when the analysis maths changes, to invalidate every cached result. */
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 3;
 
 export interface Analysis {
   id: TrackId;
@@ -58,6 +58,11 @@ export interface Analysis {
 
   /** Seconds. Where the incoming track should start so the mix lands on beat. */
   mixInSec: number;
+  /**
+   * Seconds. The start of the track's biggest sustained section — the drop or
+   * the chorus. This, not the intro, is where a live set comes in.
+   */
+  hookSec: number;
   /** Seconds. Where the outgoing track should begin handing over. */
   mixOutSec: number;
 

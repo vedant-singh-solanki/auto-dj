@@ -99,6 +99,7 @@ export async function analyzeTrack(track: Track, buffer?: AudioBuffer): Promise<
     loudnessDb: result.loudnessDb,
     energyScore: result.energyScore,
     mixInSec: result.mixInSec,
+    hookSec: result.hookSec,
     mixOutSec: result.mixOutSec,
     analyzedAt: Date.now(),
   };

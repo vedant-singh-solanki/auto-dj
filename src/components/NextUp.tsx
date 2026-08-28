@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { LoadedTrack } from '../lib/audio/deck';
 import { mixEngine } from '../lib/audio/engine';
-import { mixStartsAt } from '../lib/dj/autoDj';
+import { handoverAt } from '../lib/audio/transition';
 import { bpmLabel, countdown } from '../lib/format';
 import type { UpNext as UpNextInfo } from '../store';
 import { LiveText } from './Live';
@@ -34,7 +34,7 @@ export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTr
     if (!info && !engine.cueDeck.loaded) return '';
     const deck = engine.liveDeck;
     const position = deck.positionAt(engine.now);
-    const startsAt = mixStartsAt(live.analysis);
+    const startsAt = handoverAt(live.analysis);
     const seconds = (startsAt - position) / Math.max(0.01, deck.playbackRate);
     return seconds > 0 ? `mixes in ${countdown(seconds)}` : 'mixing shortly';
   }, [engine, live, info]);
@@ -42,7 +42,7 @@ export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTr
   const track = info?.track ?? cue.loaded?.track ?? null;
 
   return (
-    <section className="rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex items-center justify-between">
         <span className="text-eyebrow uppercase text-ink-tertiary">Up next</span>
         <LiveText get={untilMix} className="font-mono text-mono text-ink-subtle" />

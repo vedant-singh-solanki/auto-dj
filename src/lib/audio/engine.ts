@@ -1,7 +1,7 @@
 import type { DeckId } from '../../types';
 import { audioContext, resumeAudio } from './context';
 import { Deck, type LoadedTrack } from './deck';
-import { type MixPlan, planMix, scheduleMix } from './transition';
+import { type MixPlan, planMix, scheduleMix, snapToBar } from './transition';
 
 /**
  * The mixer. Owns two decks and the master chain:
@@ -104,7 +104,8 @@ export class MixEngine {
 
     deck.load(loaded);
     const startAt = ctx.currentTime + 0.08;
-    const offset = Math.min(loaded.analysis.mixInSec, loaded.analysis.durationSec * 0.25);
+    // Open the set on the hook, the same way every later track comes in.
+    const offset = Math.min(snapToBar(loaded.analysis, loaded.analysis.hookSec), loaded.analysis.durationSec * 0.7);
     deck.start(startAt, offset, 1, onEnded);
 
     deck.fader.gain.cancelScheduledValues(startAt);
@@ -165,14 +166,6 @@ export class MixEngine {
 
     this.transition = null;
     return transition;
-  }
-
-  /** Seconds of the live track still to play at its current rate. */
-  timeLeftOnLive(): number {
-    const deck = this.liveDeck;
-    if (!deck.loaded) return 0;
-    const position = deck.positionAt(this.now);
-    return Math.max(0, (deck.loaded.buffer.duration - position) / deck.playbackRate);
   }
 
   stopEverything(): void {

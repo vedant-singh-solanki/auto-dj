@@ -2,10 +2,10 @@ import type { Analysis, Track, TrackId } from '../../types';
 import { analyzeTrack } from '../analysis/analyze';
 import type { LoadedTrack } from '../audio/deck';
 import { decodeFile } from '../audio/context';
-import { DEFAULT_MIX_BEATS, tooLongToMix } from '../constants';
+import { tooLongToMix } from '../constants';
 import { fileFor, hasSource } from '../library/fileSource';
 import { pickNext, type ScoredTrack } from './selector';
-import { playedArtists, playedIds } from './history';
+import { playedArtists, playedIds, setElapsedMin } from './history';
 import type { Mood } from '../../types';
 
 /**
@@ -42,6 +42,12 @@ export interface ChooseInput {
   analyses: Map<TrackId, Analysis>;
   current: Analysis | null;
   mood: Mood;
+  /**
+   * Tracks that failed to decode this session. A real library has the odd
+   * broken or mislabelled file in it, and the set has to route around them
+   * rather than stopping.
+   */
+  unplayable: Set<TrackId>;
 }
 
 export function chooseNext(input: ChooseInput): ScoredTrack | null {
@@ -52,19 +58,8 @@ export function chooseNext(input: ChooseInput): ScoredTrack | null {
     mood: input.mood,
     playedIds: playedIds(),
     playedArtists: playedArtists(),
-    isAvailable: hasSource,
+    setElapsedMin: setElapsedMin(),
+    isAvailable: (id) => hasSource(id) && !input.unplayable.has(id),
   });
 }
 
-/**
- * How far into the outgoing track, in its own seconds, the blend wants to
- * begin. The mixer re-derives this precisely when it schedules; this is only
- * the cue for the controller to stop waiting and call it.
- *
- * Measured in the track's own seconds, so the playback rate does not come into
- * it: 32 beats of a 124 BPM track is 15.5 seconds of that track however fast it
- * is being played.
- */
-export function mixStartsAt(outgoing: Analysis): number {
-  return Math.max(0, outgoing.mixOutSec - (DEFAULT_MIX_BEATS * 60) / outgoing.bpm);
-}
