@@ -1,5 +1,5 @@
 import type { Analysis, Mood, Track, TrackId } from '../../types';
-import { ARTIST_WINDOW, MAX_TEMPO_STRETCH, ROTATION_WINDOW } from '../constants';
+import { ARTIST_WINDOW, MAX_TEMPO_STRETCH, ROTATION_WINDOW, tooLongToMix } from '../constants';
 import { matchRate } from '../audio/transition';
 
 /**
@@ -63,6 +63,10 @@ export function scoreTrack(track: Track, input: SelectionInput): ScoredTrack | n
   if (playedAgo >= 0 && playedAgo < ROTATION_WINDOW) return null;
 
   const analysis = input.analyses.get(track.id);
+  // An hour-long DJ mix or podcast cannot be held in memory beside a second
+  // deck, and is not something to beat-match anyway.
+  if (tooLongToMix(analysis?.durationSec ?? track.durationSec)) return null;
+
   const tempo = tempoScore(input.current, analysis);
   const energy = energyScore(input.current, analysis, input.mood);
 
@@ -102,7 +106,12 @@ export function pickNext(input: SelectionInput, random: () => number = Math.rand
     // Everything is in the rotation window: fall back to the least recently
     // played track that can actually be read, so the music never stops.
     const fallback = input.tracks
-      .filter((track) => track.supported && input.isAvailable(track.id))
+      .filter(
+        (track) =>
+          track.supported &&
+          input.isAvailable(track.id) &&
+          !tooLongToMix(input.analyses.get(track.id)?.durationSec ?? track.durationSec),
+      )
       .sort((a, b) => input.playedIds.indexOf(a.id) - input.playedIds.indexOf(b.id))
       .pop();
     return fallback ? { track: fallback, score: 0, reason: 'starting the rotation again' } : null;

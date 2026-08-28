@@ -10,7 +10,10 @@ export function LiveText({ get, className = '' }: { get: () => string; className
 
   useEffect(() => {
     let frame = 0;
-    let last = '';
+    // null, not '': the effect restarts whenever the getter changes identity,
+    // and a seed of '' would compare equal to an empty new value while the DOM
+    // node still holds the previous text — which would never then be cleared.
+    let last: string | null = null;
     const update = (): void => {
       frame = requestAnimationFrame(update);
       const next = get();

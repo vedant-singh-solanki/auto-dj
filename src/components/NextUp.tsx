@@ -3,7 +3,6 @@ import type { LoadedTrack } from '../lib/audio/deck';
 import { mixEngine } from '../lib/audio/engine';
 import { mixStartsAt } from '../lib/dj/autoDj';
 import { bpmLabel, countdown } from '../lib/format';
-import { canvasTheme } from '../lib/canvasTheme';
 import type { UpNext as UpNextInfo } from '../store';
 import { LiveText } from './Live';
 import { WaveformCanvas } from './WaveformCanvas';
@@ -16,12 +15,12 @@ import { useArtwork } from './useArtwork';
  */
 export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTrack | null }) {
   const engine = mixEngine();
-  const theme = canvasTheme();
   const cue = engine.cueDeck;
-  const cueColor = cue.id === 'a' ? theme.deckA : theme.deckB;
   const artwork = useArtwork(info?.track ?? cue.loaded?.track);
 
-  const cuePosition = useCallback(() => cue.positionAt(engine.now), [cue, engine]);
+  // The mixer loads the cue deck between renders, so its tempo is read every
+  // frame rather than snapshotted — otherwise it stays a dash for the whole blend.
+  const liveCueBpm = useCallback(() => bpmLabel(mixEngine().cueDeck.loaded?.analysis.bpm), []);
 
   const untilMix = useCallback((): string => {
     const transition = engine.activeTransition;
@@ -30,12 +29,15 @@ export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTr
       return left > 0 ? `mixing · ${countdown(left)} left` : 'mixing';
     }
     if (!live) return '';
+    // Nothing is cued yet, and a countdown beside no track name reads as a
+    // contradiction — stay quiet until there is something to count down to.
+    if (!info && !engine.cueDeck.loaded) return '';
     const deck = engine.liveDeck;
     const position = deck.positionAt(engine.now);
     const startsAt = mixStartsAt(live.analysis);
     const seconds = (startsAt - position) / Math.max(0.01, deck.playbackRate);
     return seconds > 0 ? `mixes in ${countdown(seconds)}` : 'mixing shortly';
-  }, [engine, live]);
+  }, [engine, live, info]);
 
   const track = info?.track ?? cue.loaded?.track ?? null;
 
@@ -60,7 +62,7 @@ export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTr
             </div>
             <div className="shrink-0 text-right">
               <div className="font-mono text-mono text-ink-subtle">
-                {bpmLabel(cue.loaded?.analysis.bpm ?? undefined)}
+                <LiveText get={liveCueBpm} />
                 <span className="text-ink-tertiary"> BPM</span>
               </div>
               <p className="text-caption text-ink-tertiary">
@@ -70,13 +72,7 @@ export function NextUp({ info, live }: { info: UpNextInfo | null; live: LoadedTr
           </div>
 
           <div className="mt-3 overflow-hidden rounded-md border border-hairline bg-surface-2">
-            <WaveformCanvas
-              analysis={cue.loaded?.analysis ?? null}
-              positionSec={cuePosition}
-              color={cueColor}
-              height={64}
-              showMixPoint={false}
-            />
+            <WaveformCanvas which="cue" height={64} showMixPoint={false} />
           </div>
         </>
       ) : (

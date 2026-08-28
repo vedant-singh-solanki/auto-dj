@@ -27,3 +27,18 @@ export const PRELOAD_LEAD_SEC = 60;
 export const ROTATION_WINDOW = 40;
 /** Don't repeat an artist until this many others have played. */
 export const ARTIST_WINDOW = 8;
+
+/**
+ * Longest track the auto-DJ will load. Decoded audio is roughly 10MB a minute
+ * per channel, and the mixer holds two decks at once, so an hour-long DJ mix or
+ * podcast would need well over a gigabyte and take the tab down with it.
+ *
+ * Anything past this is kept in the library and labelled, not played — a
+ * sixty-minute continuous mix is not a track you beat-match anyway.
+ */
+export const MAX_MIXABLE_SEC = 20 * 60;
+
+/** True for anything too long to hold in memory alongside a second deck. */
+export function tooLongToMix(seconds: number | undefined): boolean {
+  return seconds !== undefined && seconds > MAX_MIXABLE_SEC;
+}

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Analysis, Track } from '../types';
 import { bpmLabel, clock } from '../lib/format';
 import { hasSource } from '../lib/library/fileSource';
+import { tooLongToMix } from '../lib/constants';
 import { useApp } from '../store';
 
 /**
@@ -88,7 +89,8 @@ export function TrackTable() {
           <tbody>
             {rows.slice(0, MAX_ROWS).map((track) => {
               const analysis = analyses.get(track.id);
-              const available = track.supported && hasSource(track.id);
+              const tooLong = tooLongToMix(durationOf(track, analysis));
+              const available = track.supported && hasSource(track.id) && !tooLong;
               return (
                 <tr key={track.id} className="group border-b border-hairline last:border-0 hover:bg-surface-2">
                   <td className="max-w-0 px-3 py-2">
@@ -112,7 +114,7 @@ export function TrackTable() {
                       </button>
                     ) : (
                       <span className="text-caption text-ink-tertiary">
-                        {track.supported ? 'reconnect folder' : 'unsupported file'}
+                        {tooLong ? 'too long to mix' : track.supported ? 'reconnect folder' : 'unsupported file'}
                       </span>
                     )}
                   </td>

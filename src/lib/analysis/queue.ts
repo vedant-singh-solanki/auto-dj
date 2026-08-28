@@ -1,5 +1,6 @@
 import type { Analysis, Track, TrackId } from '../../types';
 import { hasSource } from '../library/fileSource';
+import { tooLongToMix } from '../constants';
 import { analyzeTrack, cachedAnalysis } from './analyze';
 
 /**
@@ -50,6 +51,9 @@ export function analysisFor(track: Track): Promise<Analysis> {
 export function enqueueBackground(tracks: Track[]): void {
   for (const track of tracks) {
     if (!track.supported || queued.has(track.id) || inFlight.has(track.id)) continue;
+    // Decoding is what costs memory, so anything the tags already say is far too
+    // long never gets queued for it.
+    if (tooLongToMix(track.durationSec)) continue;
     queued.add(track.id);
     backlog.push(track);
   }

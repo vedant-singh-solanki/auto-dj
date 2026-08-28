@@ -17,6 +17,11 @@ your music onto the page each visit.
 Playable: `mp3`, `m4a`, `aac`, `wav`, `flac`, `ogg`, `opus`.
 Listed but not playable: `wma` and a few others no browser can decode.
 
+Anything **over 20 minutes** is listed but never played, and is marked "too long
+to mix" in the library. A decoded hour-long DJ set or podcast needs well over a
+gigabyte of memory, and the mixer holds two tracks at once — it would take the
+tab down. It is not something you would beat-match anyway.
+
 The first time a track comes up it gets analysed for tempo — a few seconds. That
 happens quietly in the background for the rest of your library while you listen,
 and the result is remembered, so it only ever happens once per track.

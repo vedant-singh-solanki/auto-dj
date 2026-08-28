@@ -60,7 +60,7 @@ export function NowPlaying({ loaded }: { loaded: LoadedTrack }) {
       </div>
 
       <div className="mt-3 overflow-hidden rounded-md border border-hairline bg-surface-2">
-        <WaveformCanvas analysis={loaded.analysis} positionSec={position} color={deckColor} height={104} />
+        <WaveformCanvas which="live" height={104} />
       </div>
     </section>
   );
