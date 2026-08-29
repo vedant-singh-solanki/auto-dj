@@ -5,6 +5,8 @@ at each track's hook, gives it about a minute and a quarter, then blends out on
 the beat with the bass swapped over so two tracks never turn to mud. It runs
 entirely inside your browser. **Your music is never uploaded anywhere.**
 
+**New here? Read [GUIDE.md](GUIDE.md)** — every control, explained.
+
 Point it at the folder your music lives in, press start, and it keeps going on
 its own: it picks what comes next and blends it in over the outro of what is
 playing. Skip if you disagree, or nudge it with *Cool down* / *Hold* / *Lift*.
