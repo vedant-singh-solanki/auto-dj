@@ -22,6 +22,7 @@ export interface Track {
   title: string;
   artist: string;
   album: string;
+  genre?: string;
   year?: number;
   /** Duration from the file's tags; the analysed value supersedes it. */
   durationSec?: number;
@@ -93,4 +94,21 @@ export interface TransitionPlan {
   /** Playback rate applied to the incoming deck to match tempo. */
   rate: number;
   beats: number;
+}
+
+/** Eight hot-cue slots per track, labelled A–H the way DJ gear labels them. */
+export const HOT_CUE_SLOTS = 8;
+export const HOT_CUE_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+/** Seconds per slot; null means the slot is empty. */
+export type HotCues = (number | null)[];
+
+export function emptyHotCues(): HotCues {
+  return Array.from({ length: HOT_CUE_SLOTS }, () => null);
+}
+
+export interface Crate {
+  id: string;
+  name: string;
+  trackIds: TrackId[];
 }

@@ -1,4 +1,5 @@
 import { type MouseEvent, useEffect, useRef } from 'react';
+import type { DeckId } from '../types';
 import { PEAKS_PER_SECOND } from '../lib/constants';
 import { canvasTheme, fitCanvas } from '../lib/canvasTheme';
 import { mixEngine } from '../lib/audio/engine';
@@ -15,8 +16,8 @@ import { mixEngine } from '../lib/audio/engine';
  */
 
 interface Props {
-  /** Which deck to follow: the one front of house, or the one coming in. */
-  which: 'live' | 'cue';
+  /** Which deck to follow. Decks are fixed positions, as on real gear. */
+  deckId: DeckId;
   /** Seconds of track shown across the full width. */
   windowSec?: number;
   /** Draw the marker showing where the handover starts. */
@@ -30,7 +31,7 @@ interface Props {
 }
 
 export function WaveformCanvas({
-  which,
+  deckId,
   windowSec = 12,
   showMixPoint = true,
   cueSec,
@@ -65,7 +66,7 @@ export function WaveformCanvas({
       ctx.stroke();
 
       const engine = mixEngine();
-      const deck = which === 'live' ? engine.liveDeck : engine.cueDeck;
+      const deck = engine.deck(deckId);
       const analysis = deck.loaded?.analysis;
       if (!analysis) return;
 
@@ -150,7 +151,7 @@ export function WaveformCanvas({
 
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [which, windowSec, showMixPoint, cueSec]);
+  }, [deckId, windowSec, showMixPoint, cueSec]);
 
   /**
    * Maps a click back to a time in the track. The window is centred on the
@@ -161,7 +162,7 @@ export function WaveformCanvas({
     if (!onSetCue) return;
     const canvas = event.currentTarget;
     const engine = mixEngine();
-    const deck = which === 'live' ? engine.liveDeck : engine.cueDeck;
+    const deck = engine.deck(deckId);
     const analysis = deck.loaded?.analysis;
     if (!analysis) return;
 

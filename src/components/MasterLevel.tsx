@@ -30,7 +30,7 @@ export function MasterLevel() {
       const bar = ref.current;
       if (bar) {
         bar.style.width = `${Math.min(100, peak * 100)}%`;
-        bar.style.background = peak > 0.95 ? 'var(--color-warning)' : 'var(--color-gold)';
+        bar.style.background = peak > 0.95 ? 'var(--color-warning)' : 'var(--color-primary)';
       }
     };
 

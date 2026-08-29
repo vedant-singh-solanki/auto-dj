@@ -86,7 +86,7 @@ export function Transport() {
   }, []);
 
   return (
-    <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="panel rounded-lg p-4">
       <div className="flex flex-wrap items-center gap-2">
         {/* One control, three states: start, pause, resume. Space works too. */}
         <button
@@ -95,7 +95,7 @@ export function Transport() {
           disabled={status === 'idle' && (trackCount === 0 || busy)}
           aria-label={playing ? 'Pause' : status === 'idle' ? 'Start the set' : 'Resume'}
           title="Play / pause (space)"
-          className="btn-gold flex items-center gap-2.5 rounded-md px-5 py-2.5 text-button transition-[background-image] disabled:cursor-not-allowed"
+          className="btn-primary flex items-center gap-2.5 rounded-md px-5 py-2.5 text-button transition-[background-image] disabled:cursor-not-allowed"
         >
           <PlayPauseIcon playing={playing} />
           {busy ? 'Starting…' : playing ? 'Pause' : status === 'idle' ? 'Start the set' : 'Resume'}
@@ -105,7 +105,7 @@ export function Transport() {
           type="button"
           onClick={() => void skip()}
           disabled={!playing}
-          className="rounded-md border border-hairline-strong bg-surface-3 px-4 py-2.5 text-button text-ink-muted transition-colors hover:border-gold-line hover:bg-surface-4 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
+          className="rounded-md btn-gear px-4 py-2.5 text-button text-ink-muted transition-colors hover:border-accent-line hover:bg-surface-4 hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
         >
           Skip — mix the next one in now
         </button>
@@ -119,7 +119,7 @@ export function Transport() {
             step={0.01}
             value={volume}
             onChange={(event) => setVolume(Number(event.target.value))}
-            className="w-28 accent-[var(--color-gold)]"
+            className="w-28 accent-[var(--color-primary)]"
             aria-label="Volume"
           />
         </label>
@@ -128,14 +128,14 @@ export function Transport() {
       {/* When the handover happens, and how to move it. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="text-eyebrow uppercase text-ink-tertiary">Next mix</span>
-        <LiveText get={untilMix} className="font-mono text-mono text-gold" />
+        <LiveText get={untilMix} className="font-mono text-mono text-primary" />
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
             onClick={() => nudgeHandover(-NUDGE_SEC)}
             disabled={!playing}
             title="Bring the next mix forward by 15 seconds"
-            className="rounded-md border border-hairline bg-surface-2 px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink disabled:opacity-35"
+            className="rounded-md btn-gear px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-accent-line hover:text-ink disabled:opacity-35"
           >
             − 15s
           </button>
@@ -144,7 +144,7 @@ export function Transport() {
             onClick={() => nudgeHandover(NUDGE_SEC)}
             disabled={!playing}
             title="Hold this track for 15 seconds longer"
-            className="rounded-md border border-hairline bg-surface-2 px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink disabled:opacity-35"
+            className="rounded-md btn-gear px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-accent-line hover:text-ink disabled:opacity-35"
           >
             + 15s
           </button>
@@ -161,7 +161,7 @@ export function Transport() {
               title={option.hint}
               onClick={() => setMood(option.value)}
               className={`rounded-sm px-3 py-1.5 text-button transition-colors ${
-                mood === option.value ? 'bg-surface-4 text-gold' : 'text-ink-subtle hover:text-ink'
+                mood === option.value ? 'bg-surface-4 text-primary' : 'text-ink-subtle hover:text-ink'
               }`}
             >
               {option.label}

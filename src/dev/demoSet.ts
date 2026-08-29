@@ -11,6 +11,8 @@
  */
 
 const SAMPLE_RATE = 44100;
+/** Fixed, so demo track ids are the same every time they are generated. */
+const DEMO_TIMESTAMP = Date.UTC(2026, 0, 1);
 const DEMO_SECONDS = 25;
 
 /** Deterministic noise, so two runs produce identical files. */
@@ -115,6 +117,12 @@ export const DEMO_SET: DemoSpec[] = [
 export function buildDemoFiles(): File[] {
   return DEMO_SET.map((spec, index) => {
     const blob = encodeWav(renderTrack(spec.bpm, index * 7919 + 13), SAMPLE_RATE);
-    return new File([blob], `${spec.name} - ${spec.bpm} BPM.wav`, { type: 'audio/wav' });
+    // A fixed timestamp keeps the track id stable across loads. Left to its
+    // default, File stamps lastModified with "now", every load mints new ids,
+    // and the library fills up with copies of the same four tracks.
+    return new File([blob], `${spec.name} - ${spec.bpm} BPM.wav`, {
+      type: 'audio/wav',
+      lastModified: DEMO_TIMESTAMP,
+    });
   });
 }

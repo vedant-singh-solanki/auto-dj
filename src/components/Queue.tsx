@@ -34,14 +34,14 @@ export function Queue() {
   };
 
   return (
-    <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="panel rounded-lg p-4">
       <div className="flex items-center justify-between">
         <span className="text-eyebrow uppercase text-ink-tertiary">Coming up</span>
         {queue.length > 0 && (
           <button
             type="button"
             onClick={() => reshuffleQueue()}
-            className="rounded-md px-2 py-1 text-caption text-ink-tertiary transition-colors hover:text-gold"
+            className="rounded-md px-2 py-1 text-caption text-ink-tertiary transition-colors hover:text-primary"
             title="Throw away the DJ's suggestions and pick again. Your own choices stay."
           >
             Re-pick
@@ -65,7 +65,7 @@ export function Queue() {
               >
                 <span
                   className={`w-4 shrink-0 text-right font-mono text-mono ${
-                    index === 0 ? 'text-gold' : 'text-ink-tertiary'
+                    index === 0 ? 'text-primary' : 'text-ink-tertiary'
                   }`}
                 >
                   {index + 1}

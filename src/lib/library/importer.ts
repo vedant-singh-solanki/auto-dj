@@ -62,6 +62,7 @@ async function buildTracks(
           year: tags.year,
           durationSec: tags.durationSec,
           tagBpm: tags.tagBpm,
+          genre: tags.genre,
           supported: candidate.supported,
           addedAt: existing?.addedAt ?? Date.now(),
         });

@@ -35,7 +35,7 @@ export function FolderPicker() {
         dragging ? 'border-primary bg-surface-2' : 'border-hairline-strong bg-surface-1'
       }`}
     >
-      <div className="btn-gold mx-auto mb-5 h-9 w-9 rounded-sm" />
+      <div className="btn-primary mx-auto mb-5 h-9 w-9 rounded-sm" />
       <h2 className="text-headline text-ink">
         {needsReconnect ? 'Welcome back' : 'Point it at your music'}
       </h2>
@@ -50,7 +50,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={() => void reconnectFolder()}
-            className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
+            className="btn-primary rounded-md px-5 py-2.5 text-button transition-[background-image]"
           >
             Reconnect "{folderName}"
           </button>
@@ -60,14 +60,14 @@ export function FolderPicker() {
               <button
                 type="button"
                 onClick={() => void connectFolder()}
-                className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
+                className="btn-primary rounded-md px-5 py-2.5 text-button transition-[background-image]"
               >
                 Choose music folder
               </button>
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="rounded-md border border-hairline-strong bg-surface-3 px-5 py-2.5 text-button text-ink-muted transition-colors hover:border-gold-line hover:bg-surface-4 hover:text-ink"
+                className="rounded-md btn-gear px-5 py-2.5 text-button text-ink-muted transition-colors hover:border-accent-line hover:bg-surface-4 hover:text-ink"
               >
                 Pick individual songs
               </button>
@@ -82,7 +82,7 @@ export function FolderPicker() {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="btn-gold rounded-md px-5 py-2.5 text-button transition-[background-image]"
+              className="btn-primary rounded-md px-5 py-2.5 text-button transition-[background-image]"
             >
               Choose music files
             </button>

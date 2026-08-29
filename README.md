@@ -96,6 +96,25 @@ transition can be watched in under a minute.
 `window.__autoDj` exposes the store and the mixer in development for poking at
 from the browser console. Neither exists in a build.
 
+## Taking control
+
+It runs itself, but nothing about that is fixed:
+
+- **The queue** shows what is coming and lets you reorder it. Add your own from
+  the collection with *Next* or *Queue*; the DJ fills the rest and re-picks
+  around your choices. *Re-pick* throws away its suggestions, not yours.
+- **Cue points.** Click a deck's waveform to set exactly where that track comes
+  in. It overrides the hook the analyser found, and is remembered for good.
+- **Hot cues.** Eight slots per track, A–H. An empty pad saves where the deck
+  is now; a filled one jumps there.
+- **Mix timing.** A live countdown to the next handover, with −15s / +15s to
+  bring it forward or hold the track longer, and *Skip* to mix immediately.
+- **Playlists.** Group tracks and select one to limit what the DJ may play —
+  it is an instruction, not just a filter.
+- **Ratings and genre** are sortable columns in the collection, alongside BPM,
+  length and a preview waveform of every track.
+- **Play/pause** is the green button, or the space bar.
+
 ## How it works
 
 It is built to behave like a DJ playing a live set, not like a playlist with
@@ -140,6 +159,6 @@ nice transitions. That distinction drives most of the decisions below.
   the artist were played. It picks with weighted randomness from the top of the
   list, so the same folder does not produce the same set twice.
 
-The look is black and gold — a booth, not a dashboard. `DESIGN.md` has the
-rules; the short version is that gold marks whatever is live and never fills a
-surface.
+The look is grey chrome with blue waveforms, after professional DJ software.
+`DESIGN.md` has the rules; the short version is that the interface is a chassis
+and colour belongs to the audio.

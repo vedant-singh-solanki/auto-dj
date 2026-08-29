@@ -60,7 +60,7 @@ export function Platter({ deckId, track, size = 132 }: Props) {
         if (rimRef.current) {
           rimRef.current.style.opacity = isLive ? '1' : '0.4';
           rimRef.current.style.boxShadow = isLive
-            ? 'inset 0 0 24px rgba(0,0,0,0.9), 0 0 26px -10px var(--color-gold-glow)'
+            ? 'inset 0 0 24px rgba(0,0,0,0.9), 0 0 26px -10px var(--color-accent-glow)'
             : 'inset 0 0 24px rgba(0,0,0,0.9)';
         }
       }
@@ -106,7 +106,7 @@ export function Platter({ deckId, track, size = 132 }: Props) {
               top: `calc(50% - ${labelSize / 2}px)`,
               backgroundImage: artwork
                 ? undefined
-                : 'linear-gradient(145deg, var(--color-gold-bright), var(--color-gold) 55%, var(--color-gold-deep))',
+                : 'linear-gradient(145deg, #4a4a4a, #2a2a2a 60%, #1a1a1a)',
             }}
           >
             {artwork && <img src={artwork} alt="" className="h-full w-full object-cover" />}

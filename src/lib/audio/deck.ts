@@ -172,6 +172,24 @@ export class Deck {
     this.endsAt = when + (this.loaded.buffer.duration - offset) / rate;
   }
 
+  /**
+   * Jumps to a point in the track, keeping everything else as it is.
+   *
+   * A buffer source cannot be repositioned, so this swaps in a fresh one at the
+   * new offset. The fader is deliberately untouched: the deck stays exactly as
+   * audible as it was, which is what makes a hot-cue jump sound like a jump
+   * rather than a retrigger.
+   */
+  seek(seconds: number, onEnded?: () => void): void {
+    if (!this.loaded || !this.source) return;
+    const duration = this.loaded.buffer.duration;
+    const target = Math.max(0, Math.min(seconds, Math.max(0, duration - 0.05)));
+
+    const rate = this.rate;
+    this.stopNow();
+    this.start(audioContext().currentTime + 0.02, target, rate, onEnded);
+  }
+
   /** Position within the track, in track seconds, at an AudioContext time. */
   positionAt(contextTime: number): number {
     if (!this.loaded) return 0;

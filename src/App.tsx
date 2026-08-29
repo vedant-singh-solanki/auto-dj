@@ -5,13 +5,13 @@ import { useApp } from './store';
 import { FolderPicker } from './components/FolderPicker';
 import { ScanProgress } from './components/ScanProgress';
 import { TrackTable } from './components/TrackTable';
-import { NowPlaying } from './components/NowPlaying';
-import { NextUp } from './components/NextUp';
+import { DeckPanel } from './components/DeckPanel';
 import { Transport } from './components/Transport';
-import { Platter } from './components/Platter';
 import { MasterLevel } from './components/MasterLevel';
 import { TransitionMeter } from './components/TransitionMeter';
 import { Queue } from './components/Queue';
+import { Crates } from './components/Crates';
+import { WaveformCanvas } from './components/WaveformCanvas';
 
 /** How often the control loop runs. Audio timing does not depend on this. */
 const TICK_MS = 200;
@@ -35,7 +35,6 @@ export function App() {
   const nowPlaying = useApp((s) => s.nowPlaying);
   const upNext = useApp((s) => s.upNext);
   const error = useApp((s) => s.error);
-  const status = useApp((s) => s.status);
   const supportsPicker = useApp((s) => s.supportsPicker);
   const addFilesRef = useRef<HTMLInputElement>(null);
 
@@ -50,28 +49,24 @@ export function App() {
 
   const ready = folderStatus === 'ready' && tracks.length > 0;
 
-  // Which track sits on which platter. The live deck holds what is playing; the
+  // Which track sits on which deck. The live deck holds what is playing; the
   // other holds whatever is cued up behind it.
   const trackOnDeck = (deckId: DeckId): Track | null =>
     (mixEngine().liveDeckId === deckId ? nowPlaying?.track : upNext?.track) ?? null;
 
   return (
     <div className="flex h-screen flex-col bg-canvas">
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline px-4 py-3">
-        <div className="btn-gold h-5 w-5 shrink-0 rounded-xs" />
-        <span className="shrink-0 whitespace-nowrap text-body font-medium text-ink">Auto DJ</span>
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-hairline bg-surface-1 px-3 py-2">
+        <div className="h-4 w-4 shrink-0 rounded-xs bg-primary" />
+        <span className="shrink-0 whitespace-nowrap text-body font-semibold text-ink">Auto DJ</span>
         {folderName && (
           <span className="hidden truncate text-caption text-ink-tertiary sm:inline">
             {folderName} · {tracks.length} tracks
           </span>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {DEMO_MODE && (
-            <button
-              type="button"
-              onClick={() => void loadDemoSet()}
-              className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:text-ink"
-            >
+            <button type="button" onClick={() => void loadDemoSet()} className="btn-gear rounded-sm px-2 py-1 text-caption">
               Load demo set
             </button>
           )}
@@ -80,7 +75,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => addFilesRef.current?.click()}
-                className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+                className="btn-gear rounded-sm px-2 py-1 text-caption"
               >
                 Add files
               </button>
@@ -88,7 +83,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => void useApp.getState().addFolder()}
-                  className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+                  className="btn-gear rounded-sm px-2 py-1 text-caption"
                 >
                   Add folder
                 </button>
@@ -96,7 +91,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => void useApp.getState().connectFolder()}
-                className="rounded-md border border-hairline bg-surface-2 px-3 py-1.5 text-caption text-ink-subtle transition-colors hover:text-ink"
+                className="btn-gear rounded-sm px-2 py-1 text-caption"
               >
                 Change folder
               </button>
@@ -117,71 +112,64 @@ export function App() {
       </header>
 
       {error && (
-        <div className="flex shrink-0 items-start gap-3 border-b border-hairline bg-surface-2 px-4 py-3">
+        <div className="flex shrink-0 items-start gap-3 border-b border-hairline bg-surface-2 px-3 py-2">
           <p className="flex-1 text-body-sm text-ink-muted">{error}</p>
           <button
             type="button"
             onClick={() => useApp.getState().dismissError()}
-            className="rounded-md px-2 py-1 text-caption text-ink-subtle hover:text-ink"
+            className="rounded-sm px-2 py-0.5 text-caption text-ink-subtle hover:text-ink"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <main className="min-h-0 flex-1 overflow-y-auto p-4">
-        {importing ? (
-          <div className="pt-12">
-            <ScanProgress progress={importing} />
+      {importing ? (
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 pt-12">
+          <ScanProgress progress={importing} />
+        </main>
+      ) : !ready ? (
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 pt-12">
+          <FolderPicker />
+        </main>
+      ) : (
+        <main className="flex min-h-0 flex-1 flex-col gap-2 p-2">
+          {/* Both decks' waveforms, stacked and full width — the part of the
+              screen a DJ actually reads while mixing. */}
+          <div className="well shrink-0 overflow-hidden rounded-lg">
+            <WaveformCanvas deckId="a" height={72} windowSec={14} />
+            <div className="h-px bg-hairline" />
+            <WaveformCanvas deckId="b" height={72} windowSec={14} />
           </div>
-        ) : !ready ? (
-          <div className="pt-12">
-            <FolderPicker />
+
+          <div className="grid shrink-0 grid-cols-1 gap-2 lg:grid-cols-2">
+            <DeckPanel deckId="a" track={trackOnDeck('a')} />
+            <DeckPanel deckId="b" track={trackOnDeck('b')} />
           </div>
-        ) : (
-          <div className="mx-auto grid h-full max-w-6xl grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-            <div className="order-2 flex min-h-0 flex-col lg:order-1">
+
+          <div className="shrink-0">
+            <TransitionMeter />
+          </div>
+
+          <div className="grid shrink-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+            <Transport />
+            <Queue />
+          </div>
+
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[190px_minmax(0,1fr)]">
+            <div className="hidden min-h-0 lg:block">
+              <Crates />
+            </div>
+            <div className="flex min-h-0 flex-col">
               <TrackTable />
             </div>
-
-            <div className="order-1 flex flex-col gap-4 lg:order-2">
-              {nowPlaying ? (
-                <>
-                  <NowPlaying loaded={nowPlaying} />
-                  <TransitionMeter />
-                  <NextUp info={upNext} live={nowPlaying} />
-                  <Queue />
-                </>
-              ) : (
-                <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-6 text-center">
-                  <p className="text-body text-ink">
-                    {status === 'starting' ? 'Getting the first track ready…' : 'Ready when you are.'}
-                  </p>
-                  <p className="mt-1 text-body-sm text-ink-subtle">
-                    Press start and it will keep going on its own.
-                  </p>
-                </section>
-              )}
-
-              {/* Worth seeing before a set begins, too — it says what will open. */}
-              {!nowPlaying && <Queue />}
-
-              <Transport />
-
-              <div className="edge-lit rounded-lg border border-hairline bg-surface-1 p-4">
-                <span className="text-eyebrow uppercase text-ink-tertiary">Decks</span>
-                <div className="mt-4 flex items-start justify-center gap-6">
-                  <Platter deckId="a" track={trackOnDeck('a')} />
-                  <Platter deckId="b" track={trackOnDeck('b')} />
-                </div>
-                <div className="mt-4">
-                  <MasterLevel />
-                </div>
-              </div>
-            </div>
           </div>
-        )}
-      </main>
+
+          <div className="shrink-0 px-1">
+            <MasterLevel />
+          </div>
+        </main>
+      )}
     </div>
   );
 }

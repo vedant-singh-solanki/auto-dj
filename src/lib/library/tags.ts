@@ -9,6 +9,7 @@ export interface TagResult {
   year?: number;
   durationSec?: number;
   tagBpm?: number;
+  genre?: string;
 }
 
 /** "03 - Sunset Drive.mp3" -> "Sunset Drive". Used when a file has no tags. */
@@ -35,6 +36,7 @@ export async function readTags(file: File): Promise<TagResult> {
       title: common.title?.trim() || titleFromFileName(file.name),
       artist: common.artist?.trim() || common.albumartist?.trim() || 'Unknown artist',
       album: common.album?.trim() || '',
+      genre: common.genre?.[0]?.trim() || undefined,
       year: common.year,
       durationSec: format.duration,
       tagBpm: Number.isFinite(bpm) && bpm > 0 ? bpm : undefined,

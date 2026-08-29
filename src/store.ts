@@ -1,11 +1,26 @@
 import { create } from 'zustand';
-import type { Analysis, Mood, Track, TrackId } from './types';
+import type { Analysis, Crate, HotCues, Mood, Track, TrackId } from './types';
+import { emptyHotCues } from './types';
 import { audioContext, resumeAudio } from './lib/audio/context';
 import { type EngineTransition, mixEngine } from './lib/audio/engine';
 import { handoverAt } from './lib/audio/transition';
 import type { LoadedTrack } from './lib/audio/deck';
 import { enqueueBackground, onAnalyzed } from './lib/analysis/queue';
-import { allAnalysis, allCues, allTracks, deleteCue, putCue } from './lib/library/db';
+import {
+  allAnalysis,
+  allCrates,
+  allCues,
+  allHotCues,
+  allRatings,
+  allTracks,
+  pruneTracks,
+  deleteCrate as deleteCrateRow,
+  deleteCue,
+  putCrate,
+  putCue,
+  putHotCues,
+  putRating,
+} from './lib/library/db';
 import { addFiles, type ImportProgress, importFromFolders } from './lib/library/importer';
 import {
   checkFolderPermission,
@@ -78,6 +93,14 @@ interface AppState {
   queue: QueueEntry[];
   /** Manual shift of the current track's handover, in seconds. */
   handoverNudgeSec: number;
+  /** Eight jump points per track. Persisted. */
+  hotCues: Map<TrackId, HotCues>;
+  /** Star ratings, 0-5. Persisted. */
+  ratings: Map<TrackId, number>;
+  /** Named groups of tracks. */
+  crates: Crate[];
+  /** Which crate the library and the DJ are limited to; null means everything. */
+  activeCrateId: string | null;
 
   status: PlaybackStatus;
   nowPlaying: LoadedTrack | null;
@@ -102,6 +125,14 @@ interface AppState {
   setCue: (trackId: TrackId, seconds: number) => void;
   clearCue: (trackId: TrackId) => void;
   nudgeHandover: (deltaSec: number) => void;
+  setHotCue: (trackId: TrackId, slot: number, seconds: number | null) => void;
+  jumpToHotCue: (slot: number) => void;
+  setRating: (trackId: TrackId, stars: number) => void;
+  createCrate: (name: string) => void;
+  deleteCrate: (id: string) => void;
+  addToCrate: (crateId: string, trackId: TrackId) => void;
+  removeFromCrate: (crateId: string, trackId: TrackId) => void;
+  setActiveCrate: (id: string | null) => void;
   setMood: (mood: Mood) => void;
   setVolume: (volume: number) => void;
   dismissError: () => void;
@@ -126,6 +157,10 @@ export const useApp = create<AppState>((set, get) => ({
   cues: new Map(),
   queue: [],
   handoverNudgeSec: 0,
+  hotCues: new Map(),
+  ratings: new Map(),
+  crates: [],
+  activeCrateId: null,
 
   status: 'idle',
   nowPlaying: null,
@@ -139,11 +174,29 @@ export const useApp = create<AppState>((set, get) => ({
     onAnalyzed((analysis) => analysisInbox.push(analysis));
     await loadHistory();
 
-    const [tracks, analyses, cues] = await Promise.all([allTracks(), allAnalysis(), allCues()]);
-    set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])), cues });
+    const [tracks, analyses, cues, hotCues, ratings, crates] = await Promise.all([
+      allTracks(),
+      allAnalysis(),
+      allCues(),
+      allHotCues(),
+      allRatings(),
+      allCrates(),
+    ]);
+    set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])), cues, hotCues, ratings, crates });
 
     const restored = await restoreFolders();
-    if (restored.length === 0) return;
+    if (restored.length === 0) {
+      // Nothing to reconnect to. Anything still on file came from individually
+      // added tracks, which a browser cannot hand back after a reload — leaving
+      // them listed would fill the collection with rows that can never play.
+      // Their cues and ratings survive, keyed by the file itself, so re-adding
+      // the same track brings its settings back with it.
+      if (get().tracks.length > 0) {
+        await pruneTracks(new Set());
+        set({ tracks: [], queue: [] });
+      }
+      return;
+    }
 
     folderHandles = restored.map((entry) => entry.handle);
     set({ folderName: describeFolders(folderHandles) });
@@ -239,7 +292,7 @@ export const useApp = create<AppState>((set, get) => ({
           (attempt === 0 && trackId ? get().tracks.find((track) => track.id === trackId) : undefined) ??
           get().queue[0]?.track ??
           chooseNext({
-            tracks: get().tracks,
+            tracks: tracksInScope(get()),
             analyses: get().analyses,
             current: null,
             mood: get().mood,
@@ -386,6 +439,85 @@ export const useApp = create<AppState>((set, get) => ({
   nudgeHandover(deltaSec) {
     if (get().status !== 'playing' || mixEngine().activeTransition) return;
     set({ handoverNudgeSec: get().handoverNudgeSec + deltaSec });
+  },
+
+  /** Saves or clears one of the eight jump points on a track. */
+  setHotCue(trackId, slot, seconds) {
+    const existing = get().hotCues.get(trackId) ?? emptyHotCues();
+    const updated = existing.slice();
+    updated[slot] = seconds === null ? null : Math.max(0, seconds);
+
+    set({ hotCues: new Map(get().hotCues).set(trackId, updated) });
+    void putHotCues(trackId, updated);
+  },
+
+  /**
+   * Jumps the live deck to one of its hot cues. Ignored mid-blend: moving a
+   * deck that is being crossfaded would wreck the mix in progress.
+   */
+  jumpToHotCue(slot) {
+    const state = get();
+    const engine = mixEngine();
+    if (state.status !== 'playing' || !state.nowPlaying || engine.activeTransition) return;
+
+    const target = state.hotCues.get(state.nowPlaying.track.id)?.[slot];
+    if (target === null || target === undefined) return;
+
+    engine.liveDeck.seek(target);
+    // The segment is measured from where the track came in, so a jump resets it.
+    liveEntrySec = target;
+    set({ handoverNudgeSec: 0 });
+  },
+
+  setRating(trackId, stars) {
+    const clamped = Math.max(0, Math.min(5, Math.round(stars)));
+    set({ ratings: new Map(get().ratings).set(trackId, clamped) });
+    void putRating(trackId, clamped);
+  },
+
+  createCrate(name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const crate: Crate = { id: `crate-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: trimmed, trackIds: [] };
+    set({ crates: [...get().crates, crate] });
+    void putCrate(crate);
+  },
+
+  deleteCrate(id) {
+    set({
+      crates: get().crates.filter((crate) => crate.id !== id),
+      activeCrateId: get().activeCrateId === id ? null : get().activeCrateId,
+    });
+    void deleteCrateRow(id);
+  },
+
+  addToCrate(crateId, trackId) {
+    const crates = get().crates.map((crate) =>
+      crate.id === crateId && !crate.trackIds.includes(trackId)
+        ? { ...crate, trackIds: [...crate.trackIds, trackId] }
+        : crate,
+    );
+    set({ crates });
+    const updated = crates.find((crate) => crate.id === crateId);
+    if (updated) void putCrate(updated);
+  },
+
+  removeFromCrate(crateId, trackId) {
+    const crates = get().crates.map((crate) =>
+      crate.id === crateId ? { ...crate, trackIds: crate.trackIds.filter((id) => id !== trackId) } : crate,
+    );
+    set({ crates });
+    const updated = crates.find((crate) => crate.id === crateId);
+    if (updated) void putCrate(updated);
+  },
+
+  /**
+   * Limits both the library view and the DJ's choices to one crate. Re-picks
+   * the queue, since what belongs in it has just changed.
+   */
+  setActiveCrate(id) {
+    set({ activeCrateId: id });
+    get().reshuffleQueue();
   },
 
   setMood(mood) {
@@ -537,7 +669,7 @@ function topUpQueue(set: Setter, get: Getter): void {
 
   const picks = planQueue(
     {
-      tracks: state.tracks,
+      tracks: tracksInScope(state),
       analyses: state.analyses,
       current,
       mood: state.mood,
@@ -605,4 +737,19 @@ function markUnplayable(set: Setter, get: Getter, id: TrackId): void {
   const next = new Set(get().unplayable);
   next.add(id);
   set({ unplayable: next });
+}
+
+/**
+ * The tracks currently in scope.
+ *
+ * A crate is not just a view: selecting one narrows what the DJ is allowed to
+ * play, which is the point of making one. "All music" is the whole library.
+ */
+export function tracksInScope(state: AppState): Track[] {
+  if (!state.activeCrateId) return state.tracks;
+  const crate = state.crates.find((entry) => entry.id === state.activeCrateId);
+  if (!crate) return state.tracks;
+
+  const wanted = new Set(crate.trackIds);
+  return state.tracks.filter((track) => wanted.has(track.id));
 }

@@ -1,243 +1,164 @@
 # Design System — Auto DJ
 
-Black and gold. A booth, not a dashboard.
+Grey chrome, blue waveforms. Instrumentation, not decoration.
 
-The reference points are professional DJ software — Rekordbox, Serato,
-VirtualDJ — but those are engineering tools, and they look it: grey chrome,
-rainbow waveforms, a control for everything. This app has one job and almost no
-controls, so it borrows their *structure* (dark room, hard-edged panels, big
-mono readouts, waveform as the hero) and drops their clutter.
+The reference is professional DJ software — Rekordbox, Serato, Traktor. Those
+interfaces are grey for a reason: the operator needs to read a waveform, a
+tempo and a clock in a dark room at a glance, and a chassis with opinions of its
+own gets in the way of that. The chrome recedes; the audio is the only thing
+allowed to be colourful.
 
-The finish is the part that has to be right. Gold on black goes wrong in one of
-two ways: too little and it is just a dark app with a yellow button; too much
-and it is a casino. The rule below — **gold is light, not paint** — is what
-keeps it on the right side.
+> **Note on history.** This replaced a black-and-gold scheme. Nothing of it
+> survives — if you find a gold token or a `btn-gold` class, it is a leftover
+> and should go.
 
 ---
 
 ## Principles
 
-1. **The room is dark.** True black canvas. This gets used in a dim room with
-   the music up; a light interface would be wrong even if it were prettier.
-2. **Gold is light, not paint.** Gold appears where something is live, active,
-   or being measured — a playing waveform, a level, the primary action, a focus
-   ring. It never fills a large area, never sits behind body text, and never
-   decorates something inert. A gold surface reads as cheap; gold *emitted* by
-   something reads as expensive.
-3. **The waveform is the hero.** It is the largest, brightest, most detailed
-   thing on screen. Everything else is chrome around it.
-4. **Numbers are instruments.** BPM, key, elapsed, remaining, level — always
-   monospace, always tabular, never re-flowing as they tick.
-5. **Edges, not shadows.** Depth comes from a surface ladder plus 1px hairlines
-   with a warm cast. Drop shadows on black do nothing; a lit top edge does.
+1. **The interface is a chassis.** Neutral grey, low contrast between panels,
+   no flourishes. Everything that draws the eye should be data.
+2. **Colour belongs to the audio.** Waveforms, hot cue pads and the level meter
+   are saturated. Buttons, panels and text are not.
+3. **Density is a feature.** A DJ wants tempo, time, waveform, cues and the
+   collection visible at once. Whitespace that costs a visible row is wrong.
+4. **Decks have fixed positions.** Deck A is on the left, deck B on the right,
+   always. The MASTER badge moves between them; the decks do not.
+5. **Numbers are instruments.** Every measurement is monospace and tabular, so
+   a running clock does not jitter.
 6. **Nothing moves that is not playing.** Animation is reserved for things that
-   represent live audio. No decorative motion.
+   represent live audio.
 
 ---
 
 ## Colour
 
-### The black ladder
+### The grey ladder
 
-Panels are separated by lift, not by borders alone. Each step is small — the
-whole range lives in the bottom 10% of the scale, which is what makes it read as
-"expensive dark" rather than "grey app".
-
-| Token | Value | Use |
-|---|---|---|
-| `--color-canvas` | `#000000` | The page. True black, deliberately. |
-| `--color-surface-1` | `#0a0908` | Panels sitting on the canvas. |
-| `--color-surface-2` | `#121110` | Wells inside panels — waveform beds, inputs. |
-| `--color-surface-3` | `#1a1815` | Raised controls, hover states. |
-| `--color-surface-4` | `#242019` | Pressed and selected states. |
-
-The blacks are warm — a few points of red and green above blue. Next to gold, a
-neutral or cool black reads as dead grey.
-
-### Hairlines
+Neutral, not warm — any tint here fights the blue of the waveforms, which is the
+one colour that has to read cleanly.
 
 | Token | Value | Use |
 |---|---|---|
-| `--color-hairline` | `#231f18` | Default 1px separation. |
-| `--color-hairline-strong` | `#332c20` | Panel outlines, table headers. |
-| `--color-gold-line` | `rgba(212,175,55,0.28)` | Edge of anything active. |
+| `--color-canvas` | `#141414` | The window behind everything. |
+| `--color-surface-1` | `#1e1e1e` | Panel base. |
+| `--color-surface-2` | `#262626` | Panel top (panels are a gradient). |
+| `--color-surface-3` | `#303030` | Raised controls, row hover. |
+| `--color-surface-4` | `#3c3c3c` | Pressed and selected states. |
+| `--color-hairline` | `#383838` | Default separation. |
+| `--color-hairline-strong` | `#4a4a4a` | Control borders, lit top edges. |
 
-### Gold
-
-A real metal ramp, not one flat yellow. Metal reads as metal because it has a
-light side and a dark side.
+### Blue
 
 | Token | Value | Use |
 |---|---|---|
-| `--color-gold` | `#d4af37` | The base. Primary action, focus ring, brand. |
-| `--color-gold-bright` | `#f3d98b` | Highlight — the lit edge, hover, text on gold surfaces. |
-| `--color-gold-deep` | `#8a6d1f` | Shadow side of the metal, gradient ends, inactive gold. |
-| `--color-gold-glow` | `rgba(212,175,55,0.35)` | Focus rings and the halo under a playing deck. |
-
-A gold *button* is a gradient from `--color-gold-bright` to `--color-gold`, with
-`--color-gold-deep` as a 1px bottom edge, and black text. That three-part
-treatment is the whole trick — a flat `#d4af37` rectangle looks like mustard.
+| `--color-primary` | `#2f8fd8` | Primary action, selection, progress, focus. |
+| `--color-primary-hover` | `#4aa8ec` | Gradient top and hover. |
+| `--color-accent-line` | `rgba(47,143,216,0.4)` | Outline of the live deck. |
+| `--color-accent-glow` | `rgba(47,143,216,0.35)` | Focus ring, live-deck glow. |
 
 ### Deck identity
 
-Two tracks play at once during every blend and the user must tell them apart
-instantly. Gold alone cannot do that, so decks take the classic pairing:
+Two tracks play at once during every blend and must be told apart instantly.
 
 | Token | Value | Deck |
 |---|---|---|
-| `--color-deck-a` | `#e8c25a` | Gold. |
-| `--color-deck-b` | `#c8cdd6` | Platinum. |
+| `--color-deck-a` | `#29a8e0` | Cyan-blue. |
+| `--color-deck-b` | `#9b7ff0` | Violet. |
 
-Permitted **only** on: the waveform stroke, the 6px deck dot, and the matching
-end of the crossfader. Never a fill, never a button, never body text.
+Permitted on the waveform stroke, the deck label, the platter rim and the
+matching end of the crossfader. Never a fill, never body text.
 
-### Text
+### Hot cue pads
 
-| Token | Value | Use |
-|---|---|---|
-| `--color-ink` | `#f5f1e8` | Primary text. Warm white, not `#fff`. |
-| `--color-ink-muted` | `#c9c2b2` | Secondary text. |
-| `--color-ink-subtle` | `#8a8274` | Labels, metadata. |
-| `--color-ink-tertiary` | `#5c574d` | Disabled, placeholder, units. |
+Eight slots, eight fixed colours — `--color-cue-a` … `--color-cue-h`
+(`#4caf50`, `#2f8fd8`, `#9c27b0`, `#f0a030`, `#e05252`, `#26c6da`, `#d4c220`,
+`#ec6bb0`). The colour belongs to the **slot**, not the track: the whole value
+of A–H is that position means the same thing every time.
 
-Pure white on true black next to gold looks blue. Every ink value is warmed to
-sit in the same family as the metal.
-
-### Semantic
+### Text and semantic
 
 | Token | Value | Use |
 |---|---|---|
-| `--color-success` | `#4a9e5c` | Analysed, connected, ready. |
-| `--color-warning` | `#d98324` | Mix point marker, clipping, over-length files. |
-
-Used sparingly enough that they never compete with gold for attention.
+| `--color-ink` | `#ececec` | Primary text. |
+| `--color-ink-muted` | `#b8b8b8` | Secondary. |
+| `--color-ink-subtle` | `#8c8c8c` | Labels. |
+| `--color-ink-tertiary` | `#6a6a6a` | Disabled, units, placeholders. |
+| `--color-success` | `#4caf50` | Play button, "running". |
+| `--color-warning` | `#f0a030` | MASTER badge, mix point, ratings, clipping. |
+| `--color-danger` | `#e05252` | Destructive only. |
 
 ---
 
 ## Typography
 
-Two families. No third.
+Two families, and nothing is large. Small type is what lets everything fit.
 
 - **`--font-sans`** — Inter. Everything that is language.
-- **`--font-mono`** — JetBrains Mono. Everything that is a measurement. BPM,
-  timecodes, levels, counts. Always `font-variant-numeric: tabular-nums`, so a
-  running clock does not jitter.
+- **`--font-mono`** — JetBrains Mono, always `tabular-nums`. Every measurement:
+  BPM, timecodes, counts.
 
-### Scale
-
-| Token | Size | Use |
-|---|---|---|
-| `--text-display-lg` | 56px | Reserved. Empty states only. |
-| `--text-display-md` | 40px | The now-playing title. |
-| `--text-headline` | 28px | Section headings, onboarding. |
-| `--text-card-title` | 22px | Panel titles. |
-| `--text-subhead` | 20px | — |
-| `--text-body-lg` | 18px | — |
-| `--text-body` | 16px | Default. |
-| `--text-body-sm` | 14px | Table rows, secondary lines. |
-| `--text-caption` | 12px | Metadata. |
-| `--text-eyebrow` | 13px | Uppercase labels. **Positive** tracking, 0.14em. |
-| `--text-mono` | 13px | Readouts. |
-| `--text-mono-lg` | 22px | The big BPM figure. |
-
-Display and headline sizes take negative tracking; eyebrows take positive
-tracking and are set in `--color-ink-subtle`, or gold when the thing they label
-is live. That contrast — tight display type against wide, spaced small caps — is
-most of the "luxury" in the type system.
+`--text-mono-lg` (28px) is the deck tempo, and is the biggest thing on screen.
+Panel labels use `--text-eyebrow` — 10px, uppercase, wide tracking — the way
+every strip on a mixer is labelled.
 
 ---
 
 ## Shape and depth
 
-- **Radius:** 4px on tags, 6px on buttons and inputs, 10px on panels, 14px on
-  the main deck panel. Nothing is ever a pill — hardware is not pill-shaped.
-- **The lit edge.** Every raised panel gets a 1px top highlight fading out at
-  both ends (`.edge-lit`). On true black this is what separates a panel from a
-  hole. Active panels use a gold-tinted version (`.edge-lit-gold`).
-- **The active glow.** The panel containing the playing deck carries a soft
-  `--color-gold-glow` outer shadow. It is the only shadow in the system, and it
-  exists to say "this is live", not to create depth.
-- **Inset wells.** Waveform beds and inputs sit at `--color-surface-2` with a 1px
-  `--color-hairline` and no top highlight — the absence of the lit edge is what
-  makes them read as recessed.
+- **Radius is 2–5px.** Equipment is barely rounded. Nothing is ever a pill.
+- **`.panel`** — a top-lit gradient with a light top border and near-black
+  bottom border. That inversion is what makes a grey rectangle read as a
+  moulded panel rather than a flat div.
+- **`.well`** — near-black with an inset shadow, lit from below. The inverse of
+  a panel, and reads as cut into the surface. Waveform beds, displays, inputs
+  and hot cue pads.
+- **`.btn-gear`** — a pressable grey control. **`.btn-primary`** — the blue one,
+  at most one per view. **`.btn-play`** — green, as on every piece of DJ gear.
+- **`.deck-live`** — a blue outline and soft glow on the deck front of house.
+  The only glow in the system, and it means "this is live", not "this is
+  raised".
 
 ---
 
-## Components
+## Layout
 
-### Buttons
+A single full-viewport application shell, top to bottom:
 
-- **Primary** — the gold gradient described above, black text, 6px radius. There
-  is at most one on screen: *Start the set*.
-- **Secondary** — `--color-surface-3`, 1px `--color-hairline-strong`, warm white
-  text. Hover lifts to `--color-surface-4` and the border warms to
-  `--color-gold-line`.
-- **Segmented** (the mood control) — a `--color-surface-2` trough with the
-  selected segment raised to `--color-surface-4` and its label in gold.
-- Disabled is 35% opacity. Never a different colour.
+1. Both decks' scrolling waveforms, full width and stacked.
+2. Deck A and deck B channel strips, side by side.
+3. The transition meter.
+4. Transport and the queue.
+5. Playlists sidebar and the collection table.
+6. Master level.
 
-### Panels
+- **≥1024px** — as above, decks side by side, playlists visible.
+- **<1024px** — decks stack, playlists sidebar hides; the collection and the
+  decks remain.
 
-`--color-surface-1`, 10px radius, 1px `--color-hairline`, `.edge-lit`. The deck
-panel is 14px, takes `.edge-lit-gold`, and gains the glow while playing.
-
-### The waveform bed
-
-Full-bleed inside its panel, `--color-surface-2`, 1px hairline. Played audio is
-drawn at full deck colour; unplayed at 42% alpha. The beat grid is
-`--color-hairline` with bar lines at `--color-hairline-strong`. The playhead is
-a 1.5px `--color-ink` line dead centre. The mix point is a dashed
-`--color-warning` rule.
-
-### Tables
-
-No zebra striping. 1px `--color-hairline` between rows, hover to
-`--color-surface-2`. Numeric columns are mono, right-aligned, tabular. Row
-actions appear on hover only.
-
-### Focus
-
-One treatment everywhere: a 2px `--color-gold-glow` ring at 2px offset. It is
-never removed, on any control.
+Touch targets are 44px minimum on anything a finger uses. Wide content scrolls
+inside its own container — the page body never scrolls sideways.
 
 ---
 
 ## Do
 
-- Let large areas be black and empty.
-- Put gold on the thing that is currently happening.
+- Keep panels close in value; let the waveform carry the contrast.
 - Set every number in tabular mono.
-- Warm every neutral — blacks, whites and greys all lean amber.
-- Use the surface ladder for hierarchy before reaching for a border.
+- Use `.well` for anything that displays, `.panel` for anything that contains.
+- Keep the deck colours to strokes and labels.
 
 ## Don't
 
-- Fill a panel, card or table row with gold.
-- Put body text on a gold background, or gold body text on black.
-- Add a second accent colour. Deck platinum and the two semantic colours are the
-  entire remaining palette.
-- Use drop shadows for depth. The only shadow is the live-deck glow.
-- Use pure `#ffffff` or pure grey anywhere.
+- Add a third accent colour. Blue, the two deck colours, the eight cue colours
+  and three semantic colours are the entire palette.
+- Use large type. If something needs emphasis, it is probably a number, and it
+  should be mono.
+- Round anything past 5px, or make a pill.
 - Animate anything that is not representing live audio.
 
 ---
 
-## Responsive
+## Dark only
 
-The app is a full-viewport shell, not a page: fixed header, scrolling library,
-fixed deck column.
-
-- **≥1024px** — two columns, library left, deck column right at 420px.
-- **768–1023px** — single column, deck panel first, library beneath it.
-- **<768px** — same, with the library table dropping its BPM and length columns.
-  The deck panel never collapses; it is the app.
-
-Touch targets are 44px minimum. Wide content scrolls inside its own container —
-the page body never scrolls sideways.
-
----
-
-## Dark mode only
-
-There is no light theme and none is planned. A dark room is where this gets
-used, and the entire palette is built on true black.
+There is no light theme and none is planned. This is used in a dark room.

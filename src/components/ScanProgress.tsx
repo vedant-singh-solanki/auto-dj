@@ -18,7 +18,7 @@ export function ScanProgress({ progress }: { progress: ImportProgress }) {
 
       <div className="mt-4 h-1 overflow-hidden rounded-xs bg-surface-3">
         <div
-          className={`h-full bg-gold transition-[width] duration-200 ${scanning ? "shimmer" : ""}`}
+          className={`h-full bg-primary transition-[width] duration-200 ${scanning ? "shimmer" : ""}`}
           style={{ width: scanning ? '100%' : `${fraction * 100}%` }}
         />
       </div>

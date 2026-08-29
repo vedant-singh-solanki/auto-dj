@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Analysis, HistoryEntry, Track, TrackId } from '../../types';
+import type { Analysis, Crate, HistoryEntry, HotCues, Track, TrackId } from '../../types';
 
 /**
  * Everything the app remembers lives here: the folder handle, one row per
@@ -15,10 +15,16 @@ interface AutoDjDb extends DBSchema {
   history: { key: number; value: HistoryEntry; indexes: { byPlayedAt: number } };
   /** Manual entry points, in seconds. One per track, set by the user. */
   cues: { key: TrackId; value: number };
+  /** Eight jump points per track. */
+  hotCues: { key: TrackId; value: HotCues };
+  /** Star ratings, 0-5. */
+  ratings: { key: TrackId; value: number };
+  /** Named groups of tracks. */
+  crates: { key: string; value: Crate };
 }
 
 const DB_NAME = 'auto-dj';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const FOLDER_KEY = 'musicFolder';
 const FOLDERS_KEY = 'musicFolders';
 
@@ -38,6 +44,11 @@ export function db(): Promise<IDBPDatabase<AutoDjDb>> {
         history.createIndex('byPlayedAt', 'playedAt');
       }
       if (oldVersion < 2) database.createObjectStore('cues');
+      if (oldVersion < 3) {
+        database.createObjectStore('hotCues');
+        database.createObjectStore('ratings');
+        database.createObjectStore('crates', { keyPath: 'id' });
+      }
     },
   });
   return dbPromise;
@@ -157,4 +168,40 @@ export async function putCue(id: TrackId, seconds: number): Promise<void> {
 
 export async function deleteCue(id: TrackId): Promise<void> {
   await (await db()).delete('cues', id);
+}
+
+/* -- Hot cues, ratings and crates ------------------------------------------ */
+
+export async function allHotCues(): Promise<Map<TrackId, HotCues>> {
+  const database = await db();
+  const keys = await database.getAllKeys('hotCues');
+  const values = await database.getAll('hotCues');
+  return new Map(keys.map((key, index) => [key, values[index]]));
+}
+
+export async function putHotCues(id: TrackId, cues: HotCues): Promise<void> {
+  await (await db()).put('hotCues', cues, id);
+}
+
+export async function allRatings(): Promise<Map<TrackId, number>> {
+  const database = await db();
+  const keys = await database.getAllKeys('ratings');
+  const values = await database.getAll('ratings');
+  return new Map(keys.map((key, index) => [key, values[index]]));
+}
+
+export async function putRating(id: TrackId, stars: number): Promise<void> {
+  await (await db()).put('ratings', stars, id);
+}
+
+export async function allCrates(): Promise<Crate[]> {
+  return (await db()).getAll('crates');
+}
+
+export async function putCrate(crate: Crate): Promise<void> {
+  await (await db()).put('crates', crate);
+}
+
+export async function deleteCrate(id: string): Promise<void> {
+  await (await db()).delete('crates', id);
 }
