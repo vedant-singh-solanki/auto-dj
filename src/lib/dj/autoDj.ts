@@ -48,6 +48,8 @@ export interface ChooseInput {
    * rather than stopping.
    */
   unplayable: Set<TrackId>;
+  /** Already queued or otherwise spoken for, so the lookahead cannot repeat. */
+  exclude?: Set<TrackId>;
 }
 
 export function chooseNext(input: ChooseInput): ScoredTrack | null {
@@ -59,7 +61,34 @@ export function chooseNext(input: ChooseInput): ScoredTrack | null {
     playedIds: playedIds(),
     playedArtists: playedArtists(),
     setElapsedMin: setElapsedMin(),
-    isAvailable: (id) => hasSource(id) && !input.unplayable.has(id),
+    isAvailable: (id) => hasSource(id) && !input.unplayable.has(id) && !input.exclude?.has(id),
   });
 }
 
+
+/**
+ * Looks several tracks ahead, so the queue can be shown rather than revealed
+ * one song at a time.
+ *
+ * Each pick is made as if the one before it were already playing — the selector
+ * cares about the current track's tempo and energy, so a lookahead that ignored
+ * that would produce a plausible-looking list that mixes badly in practice.
+ *
+ * It is only a forecast. Anything the user drops into the queue by hand takes
+ * precedence, and the tail is re-planned whenever the mood changes.
+ */
+export function planQueue(input: ChooseInput, count: number): ScoredTrack[] {
+  const picks: ScoredTrack[] = [];
+  const exclude = new Set(input.exclude ?? []);
+  let current = input.current;
+
+  for (let i = 0; i < count; i += 1) {
+    const pick = chooseNext({ ...input, current, exclude });
+    if (!pick) break;
+    picks.push(pick);
+    exclude.add(pick.track.id);
+    // Chain from this pick, so the next choice follows on from it.
+    current = input.analyses.get(pick.track.id) ?? current;
+  }
+  return picks;
+}

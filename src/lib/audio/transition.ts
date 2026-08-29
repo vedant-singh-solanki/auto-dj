@@ -49,6 +49,20 @@ export function beatSec(analysis: Analysis): number {
 }
 
 /**
+ * Where a track should come in, in its own seconds.
+ *
+ * A cue point the user set by hand always wins over the hook the analyser
+ * guessed at — the whole reason for having one is to overrule the machine on a
+ * track it read wrongly.
+ */
+export function entrySec(analysis: Analysis, cue?: number): number {
+  if (cue !== undefined && Number.isFinite(cue) && cue >= 0) {
+    return Math.min(cue, Math.max(0, analysis.durationSec - 1));
+  }
+  return analysis.hookSec;
+}
+
+/**
  * The first phrase boundary at or after `t`, in that track's own seconds.
  *
  * This is the difference between a mix that sounds professional and one that
@@ -62,10 +76,10 @@ export function beatSec(analysis: Analysis): number {
  * detected and carries no musical meaning, whereas the hook is a real section
  * boundary — so counting phrases out from it lands them where the music does.
  */
-export function snapToPhrase(analysis: Analysis, t: number): number {
+export function snapToPhrase(analysis: Analysis, t: number, anchorSec = analysis.hookSec): number {
   const phrase = beatSec(analysis) * PHRASE_BEATS;
   if (phrase <= 0) return t;
-  return analysis.hookSec + Math.round((t - analysis.hookSec) / phrase) * phrase;
+  return anchorSec + Math.round((t - anchorSec) / phrase) * phrase;
 }
 
 /**
@@ -98,6 +112,27 @@ export interface MixInput {
   /** Skip straight to the blend — the user pressed "mix now". */
   immediate?: boolean;
   beats?: number;
+  /**
+   * Where the outgoing track should hand over, in its own seconds. Passed in
+   * rather than re-derived, so the mixer and the control loop cannot disagree
+   * about it once manual nudges and cue points are in play.
+   */
+  handoverAtSec?: number;
+  /** Manual entry point for the incoming track, if the user set one. */
+  incomingCue?: number;
+}
+
+export interface HandoverOptions {
+  /** Manual entry point for this track, if the user set one. */
+  cue?: number;
+  /**
+   * Seconds to shift the handover by, from the "mix earlier"/"mix later"
+   * buttons. Positive plays the track for longer.
+   */
+  nudgeSec?: number;
+  /** Where the track actually started, when that is not its entry point —
+   *  the opening track of a set begins at 0:00 however it is cued. */
+  startedAtSec?: number;
 }
 
 /**
@@ -113,10 +148,12 @@ export interface MixInput {
  * to schedule, and the control loop uses it to know when to start preparing —
  * if the two disagreed, tracks would either be cut short or overrun.
  */
-export function handoverAt(analysis: Analysis): number {
+export function handoverAt(analysis: Analysis, options: HandoverOptions = {}): number {
   const beat = beatSec(analysis);
   const phrase = beat * PHRASE_BEATS;
   const blendSpan = beat * DEFAULT_MIX_BEATS;
+  // The segment is measured from wherever the track actually came in.
+  const from = options.startedAtSec ?? entrySec(analysis, options.cue);
 
   let segment = Math.max(1, Math.round(SEGMENT_TARGET_SEC / phrase)) * phrase;
   if (segment < SEGMENT_MIN_SEC) segment = Math.ceil(SEGMENT_MIN_SEC / phrase) * phrase;
@@ -124,8 +161,12 @@ export function handoverAt(analysis: Analysis): number {
 
   // The blend occupies the tail of the segment, and never runs past the point
   // where the track's body stops.
-  const handover = Math.min(analysis.hookSec + segment, analysis.mixOutSec) - blendSpan;
-  return Math.max(analysis.hookSec + blendSpan, handover);
+  const handover = Math.min(from + segment, analysis.mixOutSec) - blendSpan;
+  const nudged = Math.max(from + blendSpan, handover) + (options.nudgeSec ?? 0);
+
+  // A nudge must not push the handover past the end of the track, nor drag it
+  // back before the track has had time to establish itself.
+  return Math.max(from + blendSpan, Math.min(nudged, analysis.durationSec - blendSpan));
 }
 
 /**
@@ -171,7 +212,8 @@ export function planMix(input: MixInput): MixPlan {
   }
 
   const latest = Math.max(earliest, outgoing.durationSec - spanInTrack);
-  let startInTrack = immediate ? earliest : Math.max(earliest, handoverAt(outgoing));
+  const handover = input.handoverAtSec ?? handoverAt(outgoing);
+  let startInTrack = immediate ? earliest : Math.max(earliest, handover);
   startInTrack = Math.min(startInTrack, latest);
   if (kind === 'beatmatched') {
     // snapToPhrase rounds to the NEAREST phrase, so it can move the start
@@ -180,14 +222,21 @@ export function planMix(input: MixInput): MixPlan {
     startInTrack = Math.max(earliest, Math.min(snapToPhrase(outgoing, startInTrack), latest));
   }
 
-  // Come in at the hook, not at bar one. This is the difference between a set
-  // and a playlist.
-  let offsetSec = incoming.hookSec;
-  if (kind === 'beatmatched') offsetSec = snapToPhrase(incoming, offsetSec);
-  // But never so late that there is no track left to play — and never earlier
-  // than where the track actually starts making sound.
-  const latestEntry = Math.max(incoming.mixInSec, incoming.durationSec - SEGMENT_MIN_SEC);
-  offsetSec = Math.max(0, Math.min(offsetSec, latestEntry));
+  // Come in at the hook — or wherever the user cued it. This is the difference
+  // between a set and a playlist.
+  const entry = entrySec(incoming, input.incomingCue);
+  let offsetSec = entry;
+  if (kind === 'beatmatched') offsetSec = snapToPhrase(incoming, offsetSec, entry);
+  if (input.incomingCue === undefined) {
+    // Never so late that there is no track left to play, and never earlier than
+    // where the track actually starts making sound. This guards the analyser's
+    // guess only: an explicit cue is an instruction, and gets obeyed even if it
+    // leaves a short segment — that is the user's call to make.
+    const latestEntry = Math.max(incoming.mixInSec, incoming.durationSec - SEGMENT_MIN_SEC);
+    offsetSec = Math.max(0, Math.min(offsetSec, latestEntry));
+  } else {
+    offsetSec = Math.max(0, Math.min(offsetSec, Math.max(0, incoming.durationSec - 1)));
+  }
 
   return {
     kind,

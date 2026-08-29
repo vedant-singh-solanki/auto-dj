@@ -13,10 +13,12 @@ interface AutoDjDb extends DBSchema {
   analysis: { key: TrackId; value: Analysis };
   artwork: { key: TrackId; value: Blob };
   history: { key: number; value: HistoryEntry; indexes: { byPlayedAt: number } };
+  /** Manual entry points, in seconds. One per track, set by the user. */
+  cues: { key: TrackId; value: number };
 }
 
 const DB_NAME = 'auto-dj';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const FOLDER_KEY = 'musicFolder';
 const FOLDERS_KEY = 'musicFolders';
 
@@ -24,13 +26,18 @@ let dbPromise: Promise<IDBPDatabase<AutoDjDb>> | null = null;
 
 export function db(): Promise<IDBPDatabase<AutoDjDb>> {
   dbPromise ??= openDB<AutoDjDb>(DB_NAME, DB_VERSION, {
-    upgrade(database) {
-      database.createObjectStore('meta');
-      database.createObjectStore('tracks', { keyPath: 'id' });
-      database.createObjectStore('analysis', { keyPath: 'id' });
-      database.createObjectStore('artwork');
-      const history = database.createObjectStore('history', { autoIncrement: true });
-      history.createIndex('byPlayedAt', 'playedAt');
+    upgrade(database, oldVersion) {
+      // Each step is guarded so an existing library upgrades in place rather
+      // than being rebuilt — analysis is expensive and worth keeping.
+      if (oldVersion < 1) {
+        database.createObjectStore('meta');
+        database.createObjectStore('tracks', { keyPath: 'id' });
+        database.createObjectStore('analysis', { keyPath: 'id' });
+        database.createObjectStore('artwork');
+        const history = database.createObjectStore('history', { autoIncrement: true });
+        history.createIndex('byPlayedAt', 'playedAt');
+      }
+      if (oldVersion < 2) database.createObjectStore('cues');
     },
   });
   return dbPromise;
@@ -128,4 +135,26 @@ export async function recentHistory(limit: number): Promise<HistoryEntry[]> {
     cursor = await cursor.continue();
   }
   return out;
+}
+
+/* -- Manual cue points ----------------------------------------------------- */
+
+/**
+ * Where the user has decided a track should come in, overriding the hook the
+ * analyser found. Persisted, because a cue point is a judgement about the music
+ * that should outlive the session.
+ */
+export async function allCues(): Promise<Map<TrackId, number>> {
+  const database = await db();
+  const keys = await database.getAllKeys('cues');
+  const values = await database.getAll('cues');
+  return new Map(keys.map((key, index) => [key, values[index]]));
+}
+
+export async function putCue(id: TrackId, seconds: number): Promise<void> {
+  await (await db()).put('cues', seconds, id);
+}
+
+export async function deleteCue(id: TrackId): Promise<void> {
+  await (await db()).delete('cues', id);
 }

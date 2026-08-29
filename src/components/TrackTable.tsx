@@ -26,7 +26,7 @@ export function TrackTable() {
   const analyses = useApp((s) => s.analyses);
   const status = useApp((s) => s.status);
   const unplayable = useApp((s) => s.unplayable);
-  const { start, queueNext } = useApp.getState();
+  const { start, queueNext, enqueue } = useApp.getState();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('title');
@@ -105,15 +105,25 @@ export function TrackTable() {
                   <td className="w-14 px-2 py-2 text-right font-mono text-mono text-ink-tertiary">
                     {clock(durationOf(track, analysis))}
                   </td>
-                  <td className="w-28 px-3 py-2 text-right">
+                  <td className="w-40 px-3 py-2 text-right">
                     {available ? (
-                      <button
-                        type="button"
-                        onClick={() => (status === 'idle' ? void start(track.id) : queueNext(track.id))}
-                        className="rounded-md border border-hairline bg-surface-2 px-2 py-1 text-caption text-ink-subtle opacity-0 transition hover:text-ink group-hover:opacity-100 focus-visible:opacity-100"
-                      >
-                        {status === 'idle' ? 'Start here' : 'Play next'}
-                      </button>
+                      <span className="inline-flex gap-1 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => (status === 'idle' ? void start(track.id) : queueNext(track.id))}
+                          className="rounded-md border border-hairline bg-surface-2 px-2 py-1 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+                        >
+                          {status === 'idle' ? 'Start here' : 'Play next'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => enqueue(track.id)}
+                          title="Add to the end of the queue"
+                          className="rounded-md border border-hairline bg-surface-2 px-2 py-1 text-caption text-ink-subtle transition-colors hover:border-gold-line hover:text-ink"
+                        >
+                          Queue
+                        </button>
+                      </span>
                     ) : (
                       <span className="text-caption text-ink-tertiary">
                         {broken

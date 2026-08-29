@@ -5,7 +5,7 @@ import { type EngineTransition, mixEngine } from './lib/audio/engine';
 import { handoverAt } from './lib/audio/transition';
 import type { LoadedTrack } from './lib/audio/deck';
 import { enqueueBackground, onAnalyzed } from './lib/analysis/queue';
-import { allAnalysis, allTracks } from './lib/library/db';
+import { allAnalysis, allCues, allTracks, deleteCue, putCue } from './lib/library/db';
 import { addFiles, type ImportProgress, importFromFolders } from './lib/library/importer';
 import {
   checkFolderPermission,
@@ -15,7 +15,7 @@ import {
   restoreFolders,
   supportsFolderPicker,
 } from './lib/library/pickFolder';
-import { chooseNext, prepareTrack } from './lib/dj/autoDj';
+import { chooseNext, planQueue, prepareTrack } from './lib/dj/autoDj';
 import { loadHistory, recordPlayed, startSet } from './lib/dj/history';
 import { PREPARE_LEAD_SEC } from './lib/constants';
 
@@ -36,12 +36,23 @@ export interface UpNext {
   ready: boolean;
 }
 
+export interface QueueEntry {
+  track: Track;
+  /** Why the DJ picked it, or that the user did. */
+  reason: string;
+  /** Put there by hand. Auto-planning tops up around these, never over them. */
+  manual: boolean;
+}
+
+/** How many tracks to keep visible ahead of the one playing. */
+const QUEUE_LENGTH = 5;
+
 /** Decoded audio for the next track: too large to keep in render state. */
 let preparedNext: LoadedTrack | null = null;
 let preparing = false;
 let folderHandles: FileSystemDirectoryHandle[] = [];
-/** Set when the user picks the next track by hand; consumed once. */
-let forcedNextId: TrackId | null = null;
+/** Where the live track came in, so its handover is measured from there. */
+let liveEntrySec = 0;
 /** Analyses that arrived since the last flush, batched to avoid render storms. */
 let analysisInbox: Analysis[] = [];
 
@@ -61,6 +72,12 @@ interface AppState {
   analyses: Map<TrackId, Analysis>;
   /** Files that would not decode this session. Kept out of the rotation. */
   unplayable: Set<TrackId>;
+  /** Manual entry points the user has set, in seconds. Persisted. */
+  cues: Map<TrackId, number>;
+  /** What is coming, in order. Index 0 is the next track. */
+  queue: QueueEntry[];
+  /** Manual shift of the current track's handover, in seconds. */
+  handoverNudgeSec: number;
 
   status: PlaybackStatus;
   nowPlaying: LoadedTrack | null;
@@ -79,6 +96,12 @@ interface AppState {
   togglePause: () => Promise<void>;
   skip: () => Promise<void>;
   queueNext: (trackId: TrackId) => void;
+  enqueue: (trackId: TrackId) => void;
+  removeFromQueue: (trackId: TrackId) => void;
+  reshuffleQueue: () => void;
+  setCue: (trackId: TrackId, seconds: number) => void;
+  clearCue: (trackId: TrackId) => void;
+  nudgeHandover: (deltaSec: number) => void;
   setMood: (mood: Mood) => void;
   setVolume: (volume: number) => void;
   dismissError: () => void;
@@ -100,6 +123,9 @@ export const useApp = create<AppState>((set, get) => ({
   tracks: [],
   analyses: new Map(),
   unplayable: new Set(),
+  cues: new Map(),
+  queue: [],
+  handoverNudgeSec: 0,
 
   status: 'idle',
   nowPlaying: null,
@@ -113,8 +139,8 @@ export const useApp = create<AppState>((set, get) => ({
     onAnalyzed((analysis) => analysisInbox.push(analysis));
     await loadHistory();
 
-    const [tracks, analyses] = await Promise.all([allTracks(), allAnalysis()]);
-    set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])) });
+    const [tracks, analyses, cues] = await Promise.all([allTracks(), allAnalysis(), allCues()]);
+    set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])), cues });
 
     const restored = await restoreFolders();
     if (restored.length === 0) return;
@@ -207,29 +233,47 @@ export const useApp = create<AppState>((set, get) => ({
       // one stop the set from starting at all.
       let lastError: unknown = null;
       for (let attempt = 0; attempt < START_ATTEMPTS; attempt += 1) {
-        const requested = attempt === 0 && trackId;
-        const chosen = requested
-          ? get().tracks.find((track) => track.id === trackId)
-          : chooseNext({
-              tracks: get().tracks,
-              analyses: get().analyses,
-              current: null,
-              mood: get().mood,
-              unplayable: get().unplayable,
-            })?.track;
+        // Asked for a specific track, then whatever the user queued, then the
+        // DJ's own pick.
+        const chosen =
+          (attempt === 0 && trackId ? get().tracks.find((track) => track.id === trackId) : undefined) ??
+          get().queue[0]?.track ??
+          chooseNext({
+            tracks: get().tracks,
+            analyses: get().analyses,
+            current: null,
+            mood: get().mood,
+            unplayable: get().unplayable,
+          })?.track;
 
         if (!chosen) break;
 
         try {
           const loaded = await prepareTrack(chosen);
           mergeAnalysis(set, loaded.analysis);
-          await mixEngine().startFirst(loaded);
+
+          // The opening record plays from the top. Every later track enters at
+          // its hook because it has to land over something already playing;
+          // this one has nothing to mix against. A cue set by hand still wins.
+          const opensAt = get().cues.get(chosen.id) ?? 0;
+          await mixEngine().startFirst(loaded, opensAt);
+          liveEntrySec = opensAt;
+
           recordPlayed(chosen);
-          set({ status: 'playing', nowPlaying: loaded, upNext: null, transition: null });
+          set({
+            status: 'playing',
+            nowPlaying: loaded,
+            upNext: null,
+            transition: null,
+            handoverNudgeSec: 0,
+            queue: get().queue.filter((entry) => entry.track.id !== chosen.id),
+          });
+          topUpQueue(set, get);
           return;
         } catch (error) {
           lastError = error;
           markUnplayable(set, get, chosen.id);
+          set({ queue: get().queue.filter((entry) => entry.track.id !== chosen.id) });
         }
       }
 
@@ -262,28 +306,93 @@ export const useApp = create<AppState>((set, get) => ({
 
     try {
       if (!preparedNext) await prepareUpNext(set, get);
-      if (preparedNext) beginMix(set, preparedNext, true);
+      if (preparedNext) beginMix(set, get, preparedNext, true);
     } catch (error) {
       set({ error: messageFor(error) });
     }
   },
 
-  /** Override the DJ's choice for the next track, from the library list. */
+  /** Jump a track to the front of the queue — it plays next. */
   queueNext(trackId) {
-    if (mixEngine().activeTransition) return;
-    forcedNextId = trackId;
-    preparedNext = null;
     const track = get().tracks.find((candidate) => candidate.id === trackId);
-    set({ upNext: track ? { track, reason: 'you asked for it', ready: false } : null });
+    if (!track || mixEngine().activeTransition) return;
+
+    // Whatever was being prepared is no longer what plays next.
+    preparedNext = null;
+    const rest = get().queue.filter((entry) => entry.track.id !== trackId);
+    set({
+      queue: [{ track, reason: 'you asked for it', manual: true }, ...rest],
+      upNext: null,
+    });
+    topUpQueue(set, get);
   },
 
-  setMood(mood) {
-    // The queued track was chosen under the old mood, so let it be re-picked.
+  /** Add a track to the end of the queue. */
+  enqueue(trackId) {
+    const state = get();
+    const track = state.tracks.find((candidate) => candidate.id === trackId);
+    if (!track || state.queue.some((entry) => entry.track.id === trackId)) return;
+    set({ queue: [...state.queue, { track, reason: 'you asked for it', manual: true }] });
+  },
+
+  removeFromQueue(trackId) {
+    const state = get();
+    // Removing the track already decoded and waiting means dropping that too.
+    if (state.queue[0]?.track.id === trackId && !mixEngine().activeTransition) {
+      preparedNext = null;
+      set({ upNext: null });
+    }
+    set({ queue: state.queue.filter((entry) => entry.track.id !== trackId) });
+    topUpQueue(set, get);
+  },
+
+  /** Throw away the DJ's suggestions and pick again. Manual entries survive. */
+  reshuffleQueue() {
     if (!mixEngine().activeTransition) {
       preparedNext = null;
       set({ upNext: null });
     }
+    set({ queue: get().queue.filter((entry) => entry.manual) });
+    topUpQueue(set, get);
+  },
+
+  /**
+   * Sets where a track comes in, overriding the hook the analyser found.
+   * Re-prepares the next track if this changes where it would enter.
+   */
+  setCue(trackId, seconds) {
+    const cues = new Map(get().cues).set(trackId, Math.max(0, seconds));
+    set({ cues });
+    void putCue(trackId, Math.max(0, seconds));
+
+    if (get().queue[0]?.track.id === trackId && !mixEngine().activeTransition) {
+      preparedNext = null;
+      set({ upNext: null });
+    }
+  },
+
+  clearCue(trackId) {
+    const cues = new Map(get().cues);
+    cues.delete(trackId);
+    set({ cues });
+    void deleteCue(trackId);
+  },
+
+  /**
+   * Moves the current track's handover earlier or later. Clamped inside
+   * `handoverAt`, so it can never be pushed past the end of the track or
+   * dragged back before the blend has room to happen.
+   */
+  nudgeHandover(deltaSec) {
+    if (get().status !== 'playing' || mixEngine().activeTransition) return;
+    set({ handoverNudgeSec: get().handoverNudgeSec + deltaSec });
+  },
+
+  setMood(mood) {
     set({ mood });
+    // The queue was planned under the old mood, so re-plan the part of it the
+    // DJ chose. Anything the user queued by hand stays where it is.
+    get().reshuffleQueue();
   },
 
   setVolume(volume) {
@@ -304,10 +413,15 @@ export const useApp = create<AppState>((set, get) => ({
     flushAnalyses(set, get);
 
     const engine = mixEngine();
-    if (engine.settle()) {
+    const settled = engine.settle();
+    if (settled) {
       const live = engine.liveDeck.loaded;
       preparedNext = null;
-      set({ nowPlaying: live, upNext: null, transition: null });
+      // The new track came in at the plan's offset, and its own handover is
+      // measured from there. Manual nudges belong to the track that has gone.
+      liveEntrySec = settled.plan.offsetSec;
+      set({ nowPlaying: live, upNext: null, transition: null, handoverNudgeSec: 0 });
+      topUpQueue(set, get);
     }
 
     const state = get();
@@ -327,8 +441,7 @@ export const useApp = create<AppState>((set, get) => ({
     // Both decisions hang off the same handover point. Timing them off the end
     // of the track instead would never fire: a set plays a track's hook and
     // moves on with minutes of it still unplayed.
-    const secondsToHandover =
-      (handoverAt(state.nowPlaying.analysis) - position) / Math.max(0.01, deck.playbackRate);
+    const secondsToHandover = (liveHandoverAt(state) - position) / Math.max(0.01, deck.playbackRate);
 
     if (!preparedNext && !preparing && secondsToHandover < PREPARE_LEAD_SEC) {
       void prepareUpNext(set, get);
@@ -336,7 +449,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
 
     if (preparedNext && secondsToHandover <= SCHEDULE_AHEAD_SEC) {
-      beginMix(set, preparedNext, false);
+      beginMix(set, get, preparedNext, false);
     }
   },
 }));
@@ -369,6 +482,8 @@ function finishImport(set: Setter, tracks: Track[]): void {
   set({ tracks, importing: null });
   // Everything gets analysed eventually; the player just does not wait for it.
   enqueueBackground(tracks);
+  // Show what is coming before anyone presses start.
+  topUpQueue(set, useApp.getState);
 }
 
 function mergeAnalysis(set: Setter, analysis: Analysis): void {
@@ -383,46 +498,101 @@ function flushAnalyses(set: Setter, get: Getter): void {
   set({ analyses: merged });
 }
 
+/**
+ * Where the track currently playing hands over, in its own seconds.
+ *
+ * Folds together the three things that can move it: where the track actually
+ * came in, a cue point the user set, and the manual earlier/later nudge.
+ */
+export function liveHandoverAt(state: AppState): number {
+  const live = state.nowPlaying;
+  if (!live) return 0;
+  return handoverAt(live.analysis, {
+    cue: state.cues.get(live.track.id),
+    nudgeSec: state.handoverNudgeSec,
+    startedAtSec: liveEntrySec,
+  });
+}
+
+/**
+ * Keeps the visible queue topped up with the DJ's own picks.
+ *
+ * Only ever appends: anything the user put in the queue by hand stays exactly
+ * where they put it. Called on the events that change what a good pick would
+ * be, rather than every tick, because planning scores the whole library.
+ */
+function topUpQueue(set: Setter, get: Getter): void {
+  const state = get();
+  if (state.queue.length >= QUEUE_LENGTH) return;
+
+  const queued = new Set(state.queue.map((entry) => entry.track.id));
+  // Never line a track up behind itself. The rotation window normally prevents
+  // this, but a small library falls through to "least recently played", and
+  // without this the playing track is the first thing that comes back.
+  if (state.nowPlaying) queued.add(state.nowPlaying.track.id);
+  if (state.upNext) queued.add(state.upNext.track.id);
+  // Chain from the last thing in the queue, or from what is playing.
+  const tail = state.queue.at(-1);
+  const current = (tail ? state.analyses.get(tail.track.id) : state.nowPlaying?.analysis) ?? null;
+
+  const picks = planQueue(
+    {
+      tracks: state.tracks,
+      analyses: state.analyses,
+      current,
+      mood: state.mood,
+      unplayable: state.unplayable,
+      exclude: queued,
+    },
+    QUEUE_LENGTH - state.queue.length,
+  );
+  if (picks.length === 0) return;
+
+  set({
+    queue: [...state.queue, ...picks.map((pick) => ({ track: pick.track, reason: pick.reason, manual: false }))],
+  });
+}
+
 async function prepareUpNext(set: Setter, get: Getter): Promise<void> {
   const state = get();
-
-  const forced = forcedNextId ? state.tracks.find((track) => track.id === forcedNextId) : undefined;
-  forcedNextId = null;
-
-  const choice = forced
-    ? { track: forced, score: 1, reason: 'you asked for it' }
-    : chooseNext({
-        tracks: state.tracks,
-        analyses: state.analyses,
-        current: state.nowPlaying?.analysis ?? null,
-        mood: state.mood,
-        unplayable: state.unplayable,
-      });
-  if (!choice) return;
+  const next = state.queue[0];
+  if (!next) {
+    topUpQueue(set, get);
+    return;
+  }
 
   preparing = true;
-  set({ upNext: { track: choice.track, reason: choice.reason, ready: false } });
+  set({ upNext: { track: next.track, reason: next.reason, ready: false } });
   try {
-    preparedNext = await prepareTrack(choice.track);
+    preparedNext = await prepareTrack(next.track);
     mergeAnalysis(set, preparedNext.analysis);
-    set({ upNext: { track: choice.track, reason: choice.reason, ready: true } });
+    set({ upNext: { track: next.track, reason: next.reason, ready: true } });
   } catch {
-    // A file that will not decode is dropped from the rotation and the next
-    // tick picks something else. No banner: the set carries on, and the library
-    // row says why that track is greyed out.
+    // A file that will not decode is dropped from the queue and the next tick
+    // takes whatever moved up behind it. No banner: the set carries on, and the
+    // library row says why that track is greyed out.
     preparedNext = null;
-    markUnplayable(set, get, choice.track.id);
-    set({ upNext: null });
+    markUnplayable(set, get, next.track.id);
+    set({ upNext: null, queue: get().queue.filter((entry) => entry.track.id !== next.track.id) });
+    topUpQueue(set, get);
   } finally {
     preparing = false;
   }
 }
 
-function beginMix(set: Setter, loaded: LoadedTrack, immediate: boolean): void {
-  const transition = mixEngine().mixInto(loaded, { immediate });
+function beginMix(set: Setter, get: Getter, loaded: LoadedTrack, immediate: boolean): void {
+  const state = get();
+  const transition = mixEngine().mixInto(loaded, {
+    immediate,
+    handoverAtSec: liveHandoverAt(state),
+    incomingCue: state.cues.get(loaded.track.id),
+  });
   if (!transition) return;
+
   recordPlayed(loaded.track);
-  set({ transition });
+  // It is committed now, so it leaves the queue and the DJ looks further ahead.
+  set({ transition, queue: state.queue.filter((entry) => entry.track.id !== loaded.track.id) });
+  topUpQueue(set, get);
 }
 
 

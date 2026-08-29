@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { type MouseEvent, useEffect, useRef } from 'react';
 import { PEAKS_PER_SECOND } from '../lib/constants';
 import { canvasTheme, fitCanvas } from '../lib/canvasTheme';
 import { mixEngine } from '../lib/audio/engine';
@@ -21,11 +21,23 @@ interface Props {
   windowSec?: number;
   /** Draw the marker showing where the handover starts. */
   showMixPoint?: boolean;
+  /** The manual entry point for whatever is on this deck, if one is set. */
+  cueSec?: number;
+  /** Clicking the waveform sets the cue point to the time clicked. */
+  onSetCue?: (seconds: number) => void;
   height?: number;
   className?: string;
 }
 
-export function WaveformCanvas({ which, windowSec = 12, showMixPoint = true, height = 96, className = '' }: Props) {
+export function WaveformCanvas({
+  which,
+  windowSec = 12,
+  showMixPoint = true,
+  cueSec,
+  onSetCue,
+  height = 96,
+  className = '',
+}: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -106,6 +118,27 @@ export function WaveformCanvas({ which, windowSec = 12, showMixPoint = true, hei
         }
       }
 
+      // The manual cue point, if the user has set one for this track.
+      if (cueSec !== undefined) {
+        const x = (cueSec - startSec) * pixelsPerSec;
+        if (x >= 0 && x <= width) {
+          ctx.strokeStyle = theme.primary;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(Math.round(x) + 0.5, 0);
+          ctx.lineTo(Math.round(x) + 0.5, fullHeight);
+          ctx.stroke();
+          // A flag at the top, so it reads as a marker rather than a playhead.
+          ctx.fillStyle = theme.primary;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x + 8, 4);
+          ctx.lineTo(x, 8);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
       // Playhead last: always on top, always in the middle.
       ctx.strokeStyle = theme.ink;
       ctx.lineWidth = 1.5;
@@ -117,7 +150,34 @@ export function WaveformCanvas({ which, windowSec = 12, showMixPoint = true, hei
 
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [which, windowSec, showMixPoint]);
+  }, [which, windowSec, showMixPoint, cueSec]);
 
-  return <canvas ref={ref} style={{ height }} className={`w-full ${className}`} />;
+  /**
+   * Maps a click back to a time in the track. The window is centred on the
+   * playhead, so the position has to be read at the moment of the click rather
+   * than taken from the last render.
+   */
+  const handleClick = (event: MouseEvent<HTMLCanvasElement>): void => {
+    if (!onSetCue) return;
+    const canvas = event.currentTarget;
+    const engine = mixEngine();
+    const deck = which === 'live' ? engine.liveDeck : engine.cueDeck;
+    const analysis = deck.loaded?.analysis;
+    if (!analysis) return;
+
+    const bounds = canvas.getBoundingClientRect();
+    const fraction = (event.clientX - bounds.left) / bounds.width;
+    const centre = deck.positionAt(engine.now);
+    const time = centre + (fraction - 0.5) * windowSec;
+    onSetCue(Math.max(0, Math.min(time, analysis.durationSec)));
+  };
+
+  return (
+    <canvas
+      ref={ref}
+      onClick={handleClick}
+      style={{ height, cursor: onSetCue ? 'crosshair' : undefined }}
+      className={`w-full ${className}`}
+    />
+  );
 }

@@ -285,3 +285,24 @@ export function trimFor(analysis: Analysis): number {
   const gain = 10 ** ((TARGET_LOUDNESS_DB - analysis.loudnessDb) / 20);
   return Math.max(MIN_TRIM, Math.min(MAX_TRIM, gain));
 }
+
+/**
+ * Assigns an AudioParam safely.
+ *
+ * Writing `.value` directly throws `NotSupportedError` if a `setValueCurveAtTime`
+ * is scheduled anywhere near that moment — and every blend schedules curves on
+ * the faders. Clearing the schedule first makes "just set it to this" mean what
+ * it says, whatever the mixer was in the middle of.
+ */
+export function forceParam(param: AudioParam, value: number): void {
+  const now = audioContext().currentTime;
+  param.cancelScheduledValues(now);
+  try {
+    param.setValueAtTime(value, now);
+  } catch {
+    // A curve straddling `now` refuses even setValueAtTime; cancel it outright
+    // and take the value that leaves us at.
+    param.cancelScheduledValues(0);
+    param.setValueAtTime(value, now);
+  }
+}

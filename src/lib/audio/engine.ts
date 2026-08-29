@@ -1,6 +1,6 @@
 import type { DeckId } from '../../types';
 import { audioContext, resumeAudio } from './context';
-import { Deck, type LoadedTrack } from './deck';
+import { Deck, forceParam, type LoadedTrack } from './deck';
 import { type MixPlan, planMix, scheduleMix } from './transition';
 
 /**
@@ -96,31 +96,39 @@ export class MixEngine {
     this.master.gain.setTargetAtTime(Math.max(0, Math.min(1, value)), ctx.currentTime, 0.02);
   }
 
-  /** Starts the session. No blend to make — just come up from silence. */
-  async startFirst(loaded: LoadedTrack, onEnded?: () => void): Promise<void> {
+  /**
+   * Starts the session. No blend to make — just come up from silence.
+   *
+   * The opening track plays from 0:00. Every later track comes in at its hook,
+   * because it has to land over something already playing, but the first record
+   * of a set has nothing to mix against and is allowed to simply begin. Pass
+   * `offsetSec` to override that — a cue point the user set by hand still wins.
+   */
+  async startFirst(loaded: LoadedTrack, offsetSec = 0, onEnded?: () => void): Promise<void> {
     await resumeAudio();
     const ctx = audioContext();
     const deck = this.liveDeck;
 
     deck.load(loaded);
     const startAt = ctx.currentTime + 0.08;
-    // Open the set on the hook, the same way every later track comes in.
-    // The hook is itself the phrase anchor, so this needs no snapping.
-    const offset = Math.min(loaded.analysis.hookSec, loaded.analysis.durationSec * 0.7);
+    const offset = Math.max(0, Math.min(offsetSec, loaded.analysis.durationSec * 0.9));
     deck.start(startAt, offset, 1, onEnded);
 
     deck.fader.gain.cancelScheduledValues(startAt);
     deck.fader.gain.setValueAtTime(0, startAt);
     deck.fader.gain.linearRampToValueAtTime(1, startAt + FIRST_FADE_SEC);
 
-    this.cueDeck.fader.gain.value = 0;
+    forceParam(this.cueDeck.fader.gain, 0);
   }
 
   /**
    * Plans and schedules the handover into `loaded`. Returns the plan so the UI
    * can show a countdown and say whether it managed to beat-match.
    */
-  mixInto(loaded: LoadedTrack, options: { immediate?: boolean } = {}): EngineTransition | null {
+  mixInto(
+    loaded: LoadedTrack,
+    options: { immediate?: boolean; handoverAtSec?: number; incomingCue?: number } = {},
+  ): EngineTransition | null {
     const outgoing = this.liveDeck;
     if (!outgoing.loaded) return null;
 
@@ -130,7 +138,7 @@ export class MixEngine {
 
     const incoming = this.cueDeck;
     incoming.load(loaded);
-    incoming.fader.gain.value = 0;
+    forceParam(incoming.fader.gain, 0);
 
     const plan = planMix({
       outgoing: outgoing.loaded.analysis,
@@ -139,6 +147,8 @@ export class MixEngine {
       incoming: loaded.analysis,
       contextNow: this.now,
       immediate: options.immediate,
+      handoverAtSec: options.handoverAtSec,
+      incomingCue: options.incomingCue,
     });
 
     scheduleMix(outgoing, incoming, plan);
@@ -161,7 +171,7 @@ export class MixEngine {
     this.decks[transition.to].glideToRate(1, RATE_GLIDE_SEC);
 
     const retired = this.decks[transition.from];
-    retired.fader.gain.value = 0;
+    forceParam(retired.fader.gain, 0);
     retired.resetEq();
     retired.unload();
 
@@ -173,7 +183,7 @@ export class MixEngine {
     this.transition = null;
     for (const id of ['a', 'b'] as DeckId[]) {
       const deck = this.decks[id];
-      deck.fader.gain.value = 0;
+      forceParam(deck.fader.gain, 0);
       deck.resetEq();
       deck.unload();
     }

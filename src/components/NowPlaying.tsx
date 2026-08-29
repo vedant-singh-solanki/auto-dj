@@ -6,6 +6,7 @@ import { canvasTheme } from '../lib/canvasTheme';
 import { LiveBar, LiveText } from './Live';
 import { WaveformCanvas } from './WaveformCanvas';
 import { useArtwork } from './useArtwork';
+import { useApp } from '../store';
 
 /**
  * The deck the audience is hearing, and the centrepiece of the app: cover,
@@ -23,6 +24,8 @@ export function NowPlaying({ loaded }: { loaded: LoadedTrack }) {
 
   const position = useCallback(() => engine.liveDeck.positionAt(engine.now), [engine]);
   const duration = loaded.analysis.durationSec;
+  const cue = useApp((s) => s.cues.get(loaded.track.id));
+  const { setCue, clearCue } = useApp.getState();
 
   return (
     <section className="edge-lit edge-lit-gold deck-glow rounded-xl border border-hairline-strong bg-surface-1 p-5">
@@ -73,7 +76,29 @@ export function NowPlaying({ loaded }: { loaded: LoadedTrack }) {
       </div>
 
       <div className="well mt-4 overflow-hidden rounded-lg">
-        <WaveformCanvas which="live" height={112} />
+        <WaveformCanvas
+          which="live"
+          height={112}
+          cueSec={cue}
+          onSetCue={(seconds) => setCue(loaded.track.id, seconds)}
+        />
+      </div>
+
+      {/* Where this track comes in next time it is played. */}
+      <div className="mt-2 flex items-center gap-2 text-caption text-ink-tertiary">
+        <span>Click the waveform to set where this track comes in.</span>
+        {cue !== undefined && (
+          <>
+            <span className="font-mono text-mono text-gold">cue {clock(cue)}</span>
+            <button
+              type="button"
+              onClick={() => clearCue(loaded.track.id)}
+              className="rounded-md px-1.5 py-0.5 text-caption text-ink-tertiary transition-colors hover:text-ink"
+            >
+              clear
+            </button>
+          </>
+        )}
       </div>
     </section>
   );

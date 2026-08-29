@@ -11,6 +11,7 @@ import { Transport } from './components/Transport';
 import { Platter } from './components/Platter';
 import { MasterLevel } from './components/MasterLevel';
 import { TransitionMeter } from './components/TransitionMeter';
+import { Queue } from './components/Queue';
 
 /** How often the control loop runs. Audio timing does not depend on this. */
 const TICK_MS = 200;
@@ -149,6 +150,7 @@ export function App() {
                   <NowPlaying loaded={nowPlaying} />
                   <TransitionMeter />
                   <NextUp info={upNext} live={nowPlaying} />
+                  <Queue />
                 </>
               ) : (
                 <section className="edge-lit rounded-lg border border-hairline bg-surface-1 p-6 text-center">
@@ -160,6 +162,9 @@ export function App() {
                   </p>
                 </section>
               )}
+
+              {/* Worth seeing before a set begins, too — it says what will open. */}
+              {!nowPlaying && <Queue />}
 
               <Transport />
 
