@@ -79,12 +79,20 @@ export function TrackTable() {
   const header = (key: SortKey, label: string, className = '') => (
     <th
       scope="col"
-      className={`cursor-pointer select-none border-b border-hairline px-2 py-1.5 text-left text-eyebrow uppercase transition-colors ${
-        sort === key ? 'text-primary' : 'text-ink-tertiary hover:text-ink-subtle'
-      } ${className}`}
-      onClick={() => setSort(key)}
+      // A clickable <th> is invisible to the keyboard and says nothing about
+      // sorting; a real button inside it is reachable by Tab and announced.
+      aria-sort={sort === key ? 'ascending' : 'none'}
+      className={`border-b border-hairline text-left text-eyebrow uppercase ${className}`}
     >
-      {label}
+      <button
+        type="button"
+        onClick={() => setSort(key)}
+        className={`w-full select-none px-2 py-1.5 text-left uppercase transition-colors ${
+          sort === key ? 'text-primary' : 'text-ink-tertiary hover:text-ink-subtle'
+        }`}
+      >
+        {label}
+      </button>
     </th>
   );
 

@@ -27,6 +27,9 @@ interface Props {
   /** Clicking the waveform sets the cue point to the time clicked. */
   onSetCue?: (seconds: number) => void;
   height?: number;
+  /** Tailwind height classes. Takes precedence, so the height can be responsive —
+   *  an inline height would otherwise always win over a breakpoint class. */
+  heightClass?: string;
   className?: string;
 }
 
@@ -37,6 +40,7 @@ export function WaveformCanvas({
   cueSec,
   onSetCue,
   height = 96,
+  heightClass,
   className = '',
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -177,8 +181,8 @@ export function WaveformCanvas({
     <canvas
       ref={ref}
       onClick={handleClick}
-      style={{ height, cursor: onSetCue ? 'crosshair' : undefined }}
-      className={`w-full ${className}`}
+      style={{ height: heightClass ? undefined : height, cursor: onSetCue ? 'crosshair' : undefined }}
+      className={`w-full ${heightClass ?? ''} ${className}`}
     />
   );
 }

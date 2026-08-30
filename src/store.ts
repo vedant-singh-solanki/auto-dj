@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Analysis, Crate, HotCues, Mood, Track, TrackId } from './types';
-import { emptyHotCues } from './types';
+import { emptyHotCues, HOT_CUE_LABELS } from './types';
 import { audioContext, resumeAudio } from './lib/audio/context';
 import { type EngineTransition, mixEngine } from './lib/audio/engine';
 import { handoverAt } from './lib/audio/transition';
@@ -115,6 +115,12 @@ interface AppState {
   mode: Mode;
   /** The track being prepared in Export mode. */
   selectedTrackId: TrackId | null;
+  /**
+   * A short confirmation of something that just happened, with a way back if it
+   * threw something away. Destructive actions in this app are all one click and
+   * no dialog, which is only reasonable if they can be taken back.
+   */
+  notice: { message: string; undo?: () => void } | null;
 
   status: PlaybackStatus;
   nowPlaying: LoadedTrack | null;
@@ -149,6 +155,8 @@ interface AppState {
   setActiveCrate: (id: string | null) => void;
   setMode: (mode: Mode) => void;
   selectTrack: (id: TrackId | null) => void;
+  notify: (message: string, undo?: () => void) => void;
+  dismissNotice: () => void;
   setMood: (mood: Mood) => void;
   setVolume: (volume: number) => void;
   dismissError: () => void;
@@ -179,6 +187,7 @@ export const useApp = create<AppState>((set, get) => ({
   activeCrateId: null,
   mode: 'performance',
   selectedTrackId: null,
+  notice: null,
 
   status: 'idle',
   nowPlaying: null,
@@ -412,13 +421,24 @@ export const useApp = create<AppState>((set, get) => ({
 
   removeFromQueue(trackId) {
     const state = get();
+    const index = state.queue.findIndex((entry) => entry.track.id === trackId);
+    if (index === -1) return;
+    const removed = state.queue[index];
+
     // Removing the track already decoded and waiting means dropping that too.
-    if (state.queue[0]?.track.id === trackId && !mixEngine().activeTransition) {
+    if (index === 0 && !mixEngine().activeTransition) {
       preparedNext = null;
       set({ upNext: null });
     }
     set({ queue: state.queue.filter((entry) => entry.track.id !== trackId) });
     topUpQueue(set, get);
+
+    get().notify(`Removed "${removed.track.title}".`, () => {
+      // Back into the slot it came from, not onto the end.
+      const queue = get().queue.filter((entry) => entry.track.id !== trackId);
+      queue.splice(Math.min(index, queue.length), 0, removed);
+      set({ queue });
+    });
   },
 
   /** Throw away the DJ's suggestions and pick again. Manual entries survive. */
@@ -447,10 +467,15 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   clearCue(trackId) {
+    const previous = get().cues.get(trackId);
     const cues = new Map(get().cues);
     cues.delete(trackId);
     set({ cues });
     void deleteCue(trackId);
+
+    if (previous !== undefined) {
+      get().notify('Cue point cleared.', () => get().setCue(trackId, previous));
+    }
   },
 
   /**
@@ -471,6 +496,14 @@ export const useApp = create<AppState>((set, get) => ({
 
     set({ hotCues: new Map(get().hotCues).set(trackId, updated) });
     void putHotCues(trackId, updated);
+
+    // Only clearing is worth taking back; saving one is not destructive.
+    const previous = existing[slot];
+    if (seconds === null && previous !== null && previous !== undefined) {
+      get().notify(`Hot cue ${HOT_CUE_LABELS[slot]} cleared.`, () =>
+        get().setHotCue(trackId, slot, previous),
+      );
+    }
   },
 
   /**
@@ -506,11 +539,20 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   deleteCrate(id) {
+    // Kept whole so Undo can put it back with its tracks, not just its name.
+    const removed = get().crates.find((crate) => crate.id === id);
     set({
       crates: get().crates.filter((crate) => crate.id !== id),
       activeCrateId: get().activeCrateId === id ? null : get().activeCrateId,
     });
     void deleteCrateRow(id);
+
+    if (removed) {
+      get().notify(`Deleted "${removed.name}".`, () => {
+        set({ crates: [...get().crates, removed] });
+        void putCrate(removed);
+      });
+    }
   },
 
   addToCrate(crateId, trackId) {
@@ -548,6 +590,14 @@ export const useApp = create<AppState>((set, get) => ({
 
   selectTrack(id) {
     set({ selectedTrackId: id });
+  },
+
+  notify(message, undo) {
+    set({ notice: { message, undo } });
+  },
+
+  dismissNotice() {
+    set({ notice: null });
   },
 
   setMood(mood) {

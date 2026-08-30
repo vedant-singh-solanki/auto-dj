@@ -30,9 +30,9 @@ export function PerformanceView() {
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-2">
       {/* The part of the screen a DJ actually reads while mixing. */}
       <div className="well shrink-0 overflow-hidden rounded-lg">
-        <WaveformCanvas deckId="a" height={72} windowSec={14} />
+        <WaveformCanvas deckId="a" windowSec={14} heightClass="h-14 sm:h-[72px]" />
         <div className="h-px bg-hairline" />
-        <WaveformCanvas deckId="b" height={72} windowSec={14} />
+        <WaveformCanvas deckId="b" windowSec={14} heightClass="h-14 sm:h-[72px]" />
       </div>
 
       <div className="grid shrink-0 grid-cols-1 gap-2 lg:grid-cols-2">
@@ -53,7 +53,7 @@ export function PerformanceView() {
         <div className="hidden min-h-0 lg:block">
           <Crates />
         </div>
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-[220px] flex-col lg:min-h-0">
           <TrackTable />
         </div>
       </div>

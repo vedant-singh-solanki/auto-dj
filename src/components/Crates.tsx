@@ -41,6 +41,7 @@ export function Crates() {
         <button
           type="button"
           onClick={() => setActiveCrate(null)}
+          aria-pressed={activeCrateId === null}
           className={`flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-body-sm transition-colors ${
             activeCrateId === null ? 'bg-primary text-on-primary' : 'text-ink-muted hover:bg-surface-3'
           }`}
@@ -54,6 +55,7 @@ export function Crates() {
             <button
               type="button"
               onClick={() => setActiveCrate(crate.id)}
+              aria-pressed={activeCrateId === crate.id}
               className={`flex min-w-0 flex-1 items-center justify-between rounded-sm px-2 py-1.5 text-body-sm transition-colors ${
                 activeCrateId === crate.id ? 'bg-primary text-on-primary' : 'text-ink-muted hover:bg-surface-3'
               }`}

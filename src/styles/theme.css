@@ -33,8 +33,10 @@
   /* -- Text. Plain greys — this is a readout, not a brand. ---------------- */
   --color-ink: #ececec;
   --color-ink-muted: #b8b8b8;
-  --color-ink-subtle: #8c8c8c;
-  --color-ink-tertiary: #6a6a6a;
+  --color-ink-subtle: #a8a8a8;
+  /* Raised from #6a6a6a, which measured 3.08:1 against a panel — below the 4.5:1
+     WCAG AA floor for small text, and this is the colour most captions use. */
+  --color-ink-tertiary: #989898;
 
   /* -- Semantic. Green means running, amber means pay attention. ---------- */
   --color-success: #4caf50;

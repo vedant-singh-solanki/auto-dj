@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useApp } from '../store';
+import { MAX_LIBRARY_TRACKS, PLAYABLE_EXTENSIONS } from '../lib/constants';
 
 /**
  * The first thing anyone sees. Two paths in:
@@ -37,13 +38,42 @@ export function FolderPicker() {
     >
       <div className="btn-primary mx-auto mb-5 h-9 w-9 rounded-sm" />
       <h2 className="text-headline text-ink">
-        {needsReconnect ? 'Welcome back' : 'Point it at your music'}
+        {needsReconnect ? 'Welcome back' : 'A DJ for your own music'}
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-body-sm text-ink-subtle">
-        {needsReconnect
-          ? `Your browser needs permission again to read "${folderName}". Nothing was lost — one click and the set can carry on.`
-          : 'Choose the folder your music lives in. The files stay on your computer; nothing is uploaded anywhere.'}
-      </p>
+
+      {needsReconnect ? (
+        <p className="mx-auto mt-2 max-w-md text-body-sm text-ink-subtle">
+          Your browser needs permission again to read "{folderName}". Nothing was lost — one click and
+          the set can carry on.
+        </p>
+      ) : (
+        <>
+          {/* Say what it does before asking for anything. Someone arriving cold
+              should not have to hand over their music to find out. */}
+          <p className="mx-auto mt-2 max-w-md text-body-sm text-ink-muted">
+            Point it at your music and press play. It picks what comes next and mixes it in — coming in
+            at each track's hook, beat-matched and in key, then blending, cutting or rewinding into the
+            next one. It does not stop.
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-caption text-ink-tertiary">
+            Everything happens in this browser. Your files are read from your disk and never uploaded.
+          </p>
+
+          {/* Three steps, so the shape of it is obvious before committing. */}
+          <ol className="mx-auto mt-5 flex max-w-md flex-col gap-1.5 text-left text-body-sm text-ink-subtle">
+            {[
+              'Choose your music folder — it is remembered for next time.',
+              'Press play. The first track starts from the beginning.',
+              'Leave it, or take over: skip, re-order the queue, set where a track comes in.',
+            ].map((step, index) => (
+              <li key={step} className="flex gap-2">
+                <span className="font-mono text-mono text-primary">{index + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
 
       <div className="mt-6 flex flex-col items-center gap-3">
         {needsReconnect ? (
@@ -97,6 +127,13 @@ export function FolderPicker() {
           <p className="text-caption text-ink-tertiary">or drag music onto this box</p>
         )}
       </div>
+
+      {!needsReconnect && (
+        <p className="mx-auto mt-4 max-w-sm text-caption text-ink-tertiary">
+          Plays {PLAYABLE_EXTENSIONS.map((extension) => `.${extension}`).join(', ')}. Video files work
+          too — it uses the audio. Up to {MAX_LIBRARY_TRACKS} tracks.
+        </p>
+      )}
 
       <input
         ref={inputRef}

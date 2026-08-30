@@ -160,6 +160,7 @@ export function Transport() {
               type="button"
               title={option.hint}
               onClick={() => setMood(option.value)}
+              aria-pressed={mood === option.value}
               className={`rounded-sm px-3 py-1.5 text-button transition-colors ${
                 mood === option.value ? 'bg-surface-4 text-primary' : 'text-ink-subtle hover:text-ink'
               }`}

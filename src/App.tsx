@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from './store';
 import { FolderPicker } from './components/FolderPicker';
 import { ScanProgress } from './components/ScanProgress';
 import { PerformanceView } from './components/PerformanceView';
 import { ExportView } from './components/ExportView';
+import { Help } from './components/Help';
+import { Notice } from './components/Notice';
 
 /** How often the control loop runs. Audio timing does not depend on this. */
 const TICK_MS = 200;
@@ -28,6 +30,7 @@ export function App() {
   const mode = useApp((s) => s.mode);
   const supportsPicker = useApp((s) => s.supportsPicker);
   const addFilesRef = useRef<HTMLInputElement>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     void init();
@@ -55,6 +58,7 @@ export function App() {
                 key={option}
                 type="button"
                 onClick={() => useApp.getState().setMode(option)}
+                aria-pressed={mode === option}
                 className={`rounded-xs px-2.5 py-1 text-caption capitalize transition-colors ${
                   mode === option ? 'bg-primary text-on-primary' : 'text-ink-subtle hover:text-ink'
                 }`}
@@ -72,6 +76,13 @@ export function App() {
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="btn-gear rounded-sm px-2 py-1 text-caption"
+          >
+            Help
+          </button>
           {DEMO_MODE && (
             <button type="button" onClick={() => void loadDemoSet()} className="btn-gear rounded-sm px-2 py-1 text-caption">
               Load demo set
@@ -145,6 +156,9 @@ export function App() {
       ) : (
         <PerformanceView />
       )}
+
+      <Notice />
+      {helpOpen && <Help onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

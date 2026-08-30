@@ -3,17 +3,83 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
     <title>Auto DJ</title>
-    <meta name="description" content="A DJ that mixes your own music, entirely in your browser." />
+    <meta
+      name="description"
+      content="A DJ that plays your own music and mixes it like a live set — beat-matched, in key, entirely in your browser. Nothing is uploaded."
+    />
+
+    <!--
+      Fonts load asynchronously and the app never waits on them: the stack in
+      theme.css falls back to the system UI font, so a slow or blocked font
+      request costs a little typography, not a blank page.
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+
+    <style>
+      /*
+        Painted before any JavaScript runs, so the first thing on screen is the
+        app's own background rather than white, and something says it is
+        starting. Replaced the moment React mounts.
+      */
+      html,
+      body {
+        margin: 0;
+        background: #141414;
+        color: #8c8c8c;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+      }
+      #boot .mark {
+        width: 18px;
+        height: 18px;
+        border-radius: 2px;
+        background: #2f8fd8;
+        animation: boot-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .mark {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot">
+        <div class="mark"></div>
+        <p>Starting Auto DJ…</p>
+        <noscript>
+          Auto DJ needs JavaScript, because the mixing happens in your browser rather than on a server.
+        </noscript>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
