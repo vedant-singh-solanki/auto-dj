@@ -20,8 +20,12 @@ import {
   putCue,
   putHotCues,
   putRating,
+  putSetting,
+  getSetting,
+  SETTING_STYLE,
 } from './lib/library/db';
 import { addFiles, type ImportProgress, importFromFolders } from './lib/library/importer';
+import { buildBackup, downloadBackup, restoreBackup } from './lib/library/backup';
 import {
   checkFolderPermission,
   chooseFolder as openFolderPicker,
@@ -31,6 +35,7 @@ import {
   supportsFolderPicker,
 } from './lib/library/pickFolder';
 import { chooseNext, planQueue, prepareTrack } from './lib/dj/autoDj';
+import { DEFAULT_STYLE_ID, styleById } from './lib/dj/styles';
 import { loadHistory, recordPlayed, startSet } from './lib/dj/history';
 import { MAX_LIBRARY_TRACKS, PREPARE_LEAD_SEC } from './lib/constants';
 
@@ -113,6 +118,8 @@ interface AppState {
   activeCrateId: string | null;
   /** Which environment is on screen. */
   mode: Mode;
+  /** The chosen set style — how long tracks run, how it blends, where energy goes. */
+  styleId: string;
   /** The track being prepared in Export mode. */
   selectedTrackId: TrackId | null;
   /**
@@ -154,6 +161,9 @@ interface AppState {
   removeFromCrate: (crateId: string, trackId: TrackId) => void;
   setActiveCrate: (id: string | null) => void;
   setMode: (mode: Mode) => void;
+  setStyle: (id: string) => void;
+  exportSettings: () => Promise<void>;
+  importSettings: (file: File) => Promise<void>;
   selectTrack: (id: TrackId | null) => void;
   notify: (message: string, undo?: () => void) => void;
   dismissNotice: () => void;
@@ -186,6 +196,7 @@ export const useApp = create<AppState>((set, get) => ({
   crates: [],
   activeCrateId: null,
   mode: 'performance',
+  styleId: DEFAULT_STYLE_ID,
   selectedTrackId: null,
   notice: null,
 
@@ -210,6 +221,9 @@ export const useApp = create<AppState>((set, get) => ({
       allCrates(),
     ]);
     set({ tracks, analyses: new Map(analyses.map((a) => [a.id, a])), cues, hotCues, ratings, crates });
+
+    const savedStyle = await getSetting<string>(SETTING_STYLE);
+    if (savedStyle) set({ styleId: savedStyle });
 
     const restored = await restoreFolders();
     if (restored.length === 0) {
@@ -328,6 +342,7 @@ export const useApp = create<AppState>((set, get) => ({
             current: null,
             mood: get().mood,
             unplayable: get().unplayable,
+            style: styleById(get().styleId),
           })?.track;
 
         if (!chosen) break;
@@ -588,6 +603,55 @@ export const useApp = create<AppState>((set, get) => ({
     set({ mode });
   },
 
+  /**
+   * Changing style changes what a good next track is, so the part of the queue
+   * the DJ chose is re-planned. Your own picks stay where you put them.
+   */
+  setStyle(id) {
+    set({ styleId: id });
+    void putSetting(SETTING_STYLE, id);
+    get().reshuffleQueue();
+    get().notify(`Set style: ${styleById(id).name}.`);
+  },
+
+  /**
+   * Writes out cue points, hot cues, ratings and playlists as a file.
+   *
+   * The music is not in it — only what you decided about it. Keep it in
+   * Dropbox or email it to yourself and the same work follows you to another
+   * computer, which is as close to sync as an app with no server can get.
+   */
+  async exportSettings() {
+    try {
+      const backup = await buildBackup();
+      downloadBackup(backup);
+      const count = Object.keys(backup.cues).length + Object.keys(backup.hotCues).length;
+      get().notify(`Backup saved — ${count} cued tracks and ${backup.crates.length} playlists.`);
+    } catch (error) {
+      set({ error: messageFor(error) });
+    }
+  },
+
+  async importSettings(file) {
+    try {
+      const summary = await restoreBackup(await file.text());
+      // Straight back out of the database, so what is on screen is what was
+      // actually stored rather than what the file claimed.
+      const [cues, hotCues, ratings, crates] = await Promise.all([
+        allCues(),
+        allHotCues(),
+        allRatings(),
+        allCrates(),
+      ]);
+      set({ cues, hotCues, ratings, crates });
+      get().notify(
+        `Restored ${summary.cues} cue points, ${summary.hotCues} hot cue sets, ${summary.ratings} ratings and ${summary.crates} playlists.`,
+      );
+    } catch (error) {
+      set({ error: messageFor(error) });
+    }
+  },
+
   selectTrack(id) {
     set({ selectedTrackId: id });
   },
@@ -728,10 +792,13 @@ function flushAnalyses(set: Setter, get: Getter): void {
 export function liveHandoverAt(state: AppState): number {
   const live = state.nowPlaying;
   if (!live) return 0;
+  const style = styleById(state.styleId);
   return handoverAt(live.analysis, {
     cue: state.cues.get(live.track.id),
     nudgeSec: state.handoverNudgeSec,
     startedAtSec: liveEntrySec,
+    segmentSec: style.segmentSec,
+    blendBeats: style.blendBeats,
   });
 }
 
@@ -764,6 +831,7 @@ function topUpQueue(set: Setter, get: Getter): void {
       mood: state.mood,
       unplayable: state.unplayable,
       exclude: queued,
+      style: styleById(state.styleId),
     },
     QUEUE_LENGTH - state.queue.length,
   );
@@ -807,6 +875,7 @@ function beginMix(set: Setter, get: Getter, loaded: LoadedTrack, immediate: bool
     immediate,
     handoverAtSec: liveHandoverAt(state),
     incomingCue: state.cues.get(loaded.track.id),
+    style: styleById(state.styleId),
   });
   if (!transition) return;
 

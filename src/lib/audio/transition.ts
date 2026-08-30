@@ -12,6 +12,7 @@ import {
   LOOP_BEATS,
 } from '../constants';
 import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ } from './deck';
+import type { SetStyle } from '../dj/styles';
 
 /**
  * Everything about how one track hands over to the next.
@@ -132,6 +133,8 @@ export interface MixInput {
   kind?: MixKind;
   /** Injectable for tests, so a chosen kind can be made deterministic. */
   random?: () => number;
+  /** The chosen set style. Governs segment length, blend length and cut bias. */
+  style?: SetStyle;
 }
 
 export interface HandoverOptions {
@@ -145,6 +148,9 @@ export interface HandoverOptions {
   /** Where the track actually started, when that is not its entry point —
    *  the opening track of a set begins at 0:00 however it is cued. */
   startedAtSec?: number;
+  /** From the chosen set style: how long a track gets, and the blend length. */
+  segmentSec?: number;
+  blendBeats?: number;
 }
 
 /**
@@ -163,13 +169,18 @@ export interface HandoverOptions {
 export function handoverAt(analysis: Analysis, options: HandoverOptions = {}): number {
   const beat = beatSec(analysis);
   const phrase = beat * PHRASE_BEATS;
-  const blendSpan = beat * DEFAULT_MIX_BEATS;
+  const blendSpan = beat * (options.blendBeats ?? DEFAULT_MIX_BEATS);
+  const target = options.segmentSec ?? SEGMENT_TARGET_SEC;
   // The segment is measured from wherever the track actually came in.
   const from = options.startedAtSec ?? entrySec(analysis, options.cue);
 
-  let segment = Math.max(1, Math.round(SEGMENT_TARGET_SEC / phrase)) * phrase;
-  if (segment < SEGMENT_MIN_SEC) segment = Math.ceil(SEGMENT_MIN_SEC / phrase) * phrase;
-  if (segment > SEGMENT_MAX_SEC) segment = Math.max(phrase, Math.floor(SEGMENT_MAX_SEC / phrase) * phrase);
+  // Snapped to whole phrases, and bounded so a style cannot ask for a segment
+  // shorter than a blend or longer than most tracks.
+  const floor = Math.min(SEGMENT_MIN_SEC, target);
+  const ceiling = Math.max(SEGMENT_MAX_SEC, target);
+  let segment = Math.max(1, Math.round(target / phrase)) * phrase;
+  if (segment < floor) segment = Math.ceil(floor / phrase) * phrase;
+  if (segment > ceiling) segment = Math.max(phrase, Math.floor(ceiling / phrase) * phrase);
 
   // The blend occupies the tail of the segment, and never runs past the point
   // where the track's body stops.
@@ -194,11 +205,15 @@ export function handoverAt(analysis: Analysis, options: HandoverOptions = {}): n
  * - two calm tracks get a long one, because there is nothing to hurry for;
  * - everything else gets the default.
  */
-export function blendBeatsFor(outgoing: Analysis, incoming: Analysis): number {
+export function blendBeatsFor(
+  outgoing: Analysis,
+  incoming: Analysis,
+  baseBeats = DEFAULT_MIX_BEATS,
+): number {
   const jump = incoming.energyScore - outgoing.energyScore;
-  if (jump > 0.18) return Math.round(DEFAULT_MIX_BEATS / 2);
-  if (jump < -0.05 && incoming.energyScore < 0.55) return DEFAULT_MIX_BEATS * 2;
-  return DEFAULT_MIX_BEATS;
+  if (jump > 0.18) return Math.max(4, Math.round(baseBeats / 2));
+  if (jump < -0.05 && incoming.energyScore < 0.55) return baseBeats * 2;
+  return baseBeats;
 }
 
 /**
@@ -232,6 +247,7 @@ export function chooseKind(
   random: () => number,
   outgoingAtSec?: number,
   incomingAtSec?: number,
+  cutChance = 0.5,
 ): MixKind {
   const jump = incoming.energyScore - outgoing.energyScore;
 
@@ -260,7 +276,7 @@ export function chooseKind(
 
   // Tempos lock. A big lift is worth cutting to — the drop lands whole instead
   // of arriving underneath the track it is replacing.
-  if (jump > 0.15 && random() < 0.5) return 'cut';
+  if (jump > 0.15 && random() < cutChance) return 'cut';
   return 'beatmatched';
 }
 
@@ -270,13 +286,23 @@ export function planMix(input: MixInput): MixPlan {
   const trusted = outgoing.bpmConfidence >= CONFIDENCE_FLOOR && incoming.bpmConfidence >= CONFIDENCE_FLOOR;
   const outgoingBpm = outgoing.bpm * outgoingRate;
   const rate = trusted ? matchRate(outgoingBpm, incoming.bpm) : null;
-  const meetOutgoing = input.handoverAtSec ?? handoverAt(outgoing);
+  const meetOutgoing =
+    input.handoverAtSec ??
+    handoverAt(outgoing, { segmentSec: input.style?.segmentSec, blendBeats: input.style?.blendBeats });
   const meetIncoming = entrySec(incoming, input.incomingCue);
   const kind: MixKind =
     input.kind ??
-    chooseKind(rate, outgoing, incoming, input.random ?? Math.random, meetOutgoing, meetIncoming);
+    chooseKind(
+      rate,
+      outgoing,
+      incoming,
+      input.random ?? Math.random,
+      meetOutgoing,
+      meetIncoming,
+      input.style?.cutChance,
+    );
 
-  const beats = input.beats ?? blendBeatsFor(outgoing, incoming);
+  const beats = input.beats ?? blendBeatsFor(outgoing, incoming, input.style?.blendBeats);
   let durationSec = kind === 'beatmatched' ? (beats * 60) / outgoingBpm : PLAIN_MIX_SEC;
 
   // Work in the outgoing track's own seconds, then convert to context time once.

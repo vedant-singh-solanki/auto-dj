@@ -205,3 +205,16 @@ export async function putCrate(crate: Crate): Promise<void> {
 export async function deleteCrate(id: string): Promise<void> {
   await (await db()).delete('crates', id);
 }
+
+/* -- Small remembered preferences ------------------------------------------ */
+
+/** Keys used with the settings helpers below. */
+export const SETTING_STYLE = 'setStyle';
+
+export async function putSetting(key: string, value: unknown): Promise<void> {
+  await (await db()).put('meta', value, key);
+}
+
+export async function getSetting<T>(key: string): Promise<T | undefined> {
+  return (await (await db()).get('meta', key)) as T | undefined;
+}

@@ -2,6 +2,7 @@ import type { DeckId } from '../../types';
 import { audioContext, resumeAudio } from './context';
 import { Deck, forceParam, type LoadedTrack } from './deck';
 import { type MixPlan, planMix, scheduleMix } from './transition';
+import type { SetStyle } from '../dj/styles';
 
 /**
  * The mixer. Owns two decks and the master chain:
@@ -127,7 +128,7 @@ export class MixEngine {
    */
   mixInto(
     loaded: LoadedTrack,
-    options: { immediate?: boolean; handoverAtSec?: number; incomingCue?: number } = {},
+    options: { immediate?: boolean; handoverAtSec?: number; incomingCue?: number; style?: SetStyle } = {},
   ): EngineTransition | null {
     const outgoing = this.liveDeck;
     if (!outgoing.loaded) return null;
@@ -149,6 +150,7 @@ export class MixEngine {
       immediate: options.immediate,
       handoverAtSec: options.handoverAtSec,
       incomingCue: options.incomingCue,
+      style: options.style,
     });
 
     scheduleMix(outgoing, incoming, plan);

@@ -5,6 +5,7 @@ import { decodeFile } from '../audio/context';
 import { tooLongToMix } from '../constants';
 import { fileFor, hasSource } from '../library/fileSource';
 import { pickNext, type ScoredTrack } from './selector';
+import type { SetStyle } from './styles';
 import { playedArtists, playedIds, setElapsedMin } from './history';
 import type { Mood } from '../../types';
 
@@ -50,6 +51,8 @@ export interface ChooseInput {
   unplayable: Set<TrackId>;
   /** Already queued or otherwise spoken for, so the lookahead cannot repeat. */
   exclude?: Set<TrackId>;
+  /** The chosen set style, which decides where the energy should go. */
+  style?: SetStyle;
 }
 
 export function chooseNext(input: ChooseInput): ScoredTrack | null {
@@ -61,6 +64,7 @@ export function chooseNext(input: ChooseInput): ScoredTrack | null {
     playedIds: playedIds(),
     playedArtists: playedArtists(),
     setElapsedMin: setElapsedMin(),
+    style: input.style,
     isAvailable: (id) => hasSource(id) && !input.unplayable.has(id) && !input.exclude?.has(id),
   });
 }

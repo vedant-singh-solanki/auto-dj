@@ -11,6 +11,7 @@ import {
 } from '../constants';
 import { matchRate } from '../audio/transition';
 import { keysAreCompatible } from '../analysis/key';
+import type { SetStyle } from './styles';
 
 /**
  * Choosing what plays next.
@@ -43,6 +44,8 @@ export interface SelectionInput {
   setElapsedMin: number;
   /** Whether the file behind a track can actually be read right now. */
   isAvailable: (id: TrackId) => boolean;
+  /** The chosen set style, which decides where the energy should go. */
+  style?: SetStyle;
 }
 
 export interface ScoredTrack {
@@ -64,9 +67,12 @@ function tempoScore(current: Analysis | null, candidate: Analysis | undefined): 
  * Where the set should sit on the energy scale this far in. A live set goes
  * somewhere across a night instead of holding one level all evening.
  */
-export function arcTarget(elapsedMin: number): number {
-  const climb = Math.max(0, Math.min(1, elapsedMin / SET_CLIMB_MIN));
-  return SET_OPENING_ENERGY + (SET_PEAK_ENERGY - SET_OPENING_ENERGY) * climb;
+export function arcTarget(elapsedMin: number, style?: SetStyle): number {
+  const opening = style?.openingEnergy ?? SET_OPENING_ENERGY;
+  const peak = style?.peakEnergy ?? SET_PEAK_ENERGY;
+  const over = style?.climbMin ?? SET_CLIMB_MIN;
+  const climb = Math.max(0, Math.min(1, elapsedMin / over));
+  return opening + (peak - opening) * climb;
 }
 
 /** 1 when the track sits exactly where the arc and the mood ask for. */
@@ -75,9 +81,10 @@ function energyScore(
   candidate: Analysis | undefined,
   mood: Mood,
   elapsedMin: number,
+  style?: SetStyle,
 ): number {
   if (!candidate) return 0.5;
-  const arc = arcTarget(elapsedMin);
+  const arc = arcTarget(elapsedMin, style);
   // Weighted towards the arc so the set climbs, but anchored to where it
   // actually is so it does not lurch from one track to the next.
   const continuity = current?.energyScore ?? arc;
@@ -112,7 +119,7 @@ export function scoreTrack(track: Track, input: SelectionInput): ScoredTrack | n
   if (tooLongToMix(analysis?.durationSec ?? track.durationSec)) return null;
 
   const tempo = tempoScore(input.current, analysis);
-  const energy = energyScore(input.current, analysis, input.mood, input.setElapsedMin);
+  const energy = energyScore(input.current, analysis, input.mood, input.setElapsedMin, input.style);
 
   const harmony = keyScore(input.current, analysis);
   let score = 0.45 * tempo + 0.35 * energy + 0.2 * harmony;

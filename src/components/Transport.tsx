@@ -4,6 +4,7 @@ import { liveHandoverAt, useApp } from '../store';
 import { mixEngine } from '../lib/audio/engine';
 import { countdown } from '../lib/format';
 import { LiveText } from './Live';
+import { StylePicker } from './StylePicker';
 
 /**
  * Everything the user needs to run a set: start, pause, skip, and the three
@@ -149,6 +150,10 @@ export function Transport() {
             + 10s
           </button>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <StylePicker />
       </div>
 
       <div className="mt-4">

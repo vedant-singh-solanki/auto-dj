@@ -2,6 +2,7 @@ import { useApp } from '../store';
 import { Crates } from './Crates';
 import { TrackTable } from './TrackTable';
 import { TrackPrep } from './TrackPrep';
+import { BackupPanel } from './BackupPanel';
 
 /**
  * Export mode: the desk rather than the booth.
@@ -38,8 +39,9 @@ export function ExportView() {
         <div className="flex min-h-0 flex-col">
           <TrackTable />
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
           <TrackPrep />
+          <BackupPanel />
         </div>
       </div>
     </div>
