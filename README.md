@@ -98,6 +98,19 @@ transition can be watched in under a minute.
 `window.__autoDj` exposes the store and the mixer in development for poking at
 from the browser console. Neither exists in a build.
 
+## Two modes
+
+The tab switch at the top left moves between them.
+
+**Performance** is the booth: both waveforms, both decks, the transport and the
+queue. What you use while a set is running.
+
+**Export** is the desk: playlists, the whole collection, and a preparation panel
+for whichever track you click — its tempo, key, length, genre, the waveform to
+set where it comes in, its rating and which playlists it belongs to. Nothing
+here makes a sound. Cueing a track properly means looking at it and deciding,
+which is not something to be doing one-handed mid-set.
+
 ## Taking control
 
 It runs itself, but nothing about that is fixed:
@@ -109,8 +122,10 @@ It runs itself, but nothing about that is fixed:
   in. It overrides the hook the analyser found, and is remembered for good.
 - **Hot cues.** Eight slots per track, A–H. An empty pad saves where the deck
   is now; a filled one jumps there.
-- **Mix timing.** A live countdown to the next handover, with −15s / +15s to
+- **Mix timing.** A live countdown to the next handover, with −10s / +10s to
   bring it forward or hold the track longer, and *Skip* to mix immediately.
+- **Cue the queue.** Every row in *Coming up* is a timeline — click it to set
+  where that track will come in, before it has reached a deck.
 - **Playlists.** Group tracks and select one to limit what the DJ may play —
   it is an instruction, not just a filter.
 - **Ratings and genre** are sortable columns in the collection, alongside BPM,

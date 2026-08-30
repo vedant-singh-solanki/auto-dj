@@ -7,6 +7,8 @@ import {
   SEGMENT_MAX_SEC,
   SEGMENT_MIN_SEC,
   SEGMENT_TARGET_SEC,
+  ENERGY_PER_SECOND,
+  VOCAL_CLASH_THRESHOLD,
 } from '../constants';
 import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ } from './deck';
 
@@ -194,6 +196,17 @@ export function blendBeatsFor(outgoing: Analysis, incoming: Analysis): number {
 }
 
 /**
+ * How likely there is singing at a given moment, 0..1. Zero when the track was
+ * analysed before vocal detection existed, which reads as "no reason to worry".
+ */
+export function vocalAt(analysis: Analysis, seconds: number): number {
+  const curve = analysis.vocal;
+  if (!curve || curve.length === 0) return 0;
+  const index = Math.max(0, Math.min(curve.length - 1, Math.floor(seconds * ENERGY_PER_SECOND)));
+  return curve[index];
+}
+
+/**
  * Which kind of transition this pair calls for.
  *
  * A DJ does not blend everything. House and techno get long tempo-locked
@@ -211,8 +224,23 @@ export function chooseKind(
   outgoing: Analysis,
   incoming: Analysis,
   random: () => number,
+  outgoingAtSec?: number,
+  incomingAtSec?: number,
 ): MixKind {
   const jump = incoming.energyScore - outgoing.energyScore;
+
+  // Two people singing at once is the one thing a blend can do that no DJ
+  // would. When both tracks are likely to have vocals at the point they meet,
+  // cut instead — that is what a hip-hop or open-format DJ does, and it is why
+  // those sets sound like cuts rather than fades.
+  if (
+    outgoingAtSec !== undefined &&
+    incomingAtSec !== undefined &&
+    vocalAt(outgoing, outgoingAtSec) > VOCAL_CLASH_THRESHOLD &&
+    vocalAt(incoming, incomingAtSec) > VOCAL_CLASH_THRESHOLD
+  ) {
+    return 'cut';
+  }
 
   if (rate === null) {
     // Tempos cannot meet. A rewind turns that into a deliberate gear change
@@ -236,7 +264,11 @@ export function planMix(input: MixInput): MixPlan {
   const trusted = outgoing.bpmConfidence >= CONFIDENCE_FLOOR && incoming.bpmConfidence >= CONFIDENCE_FLOOR;
   const outgoingBpm = outgoing.bpm * outgoingRate;
   const rate = trusted ? matchRate(outgoingBpm, incoming.bpm) : null;
-  const kind: MixKind = input.kind ?? chooseKind(rate, outgoing, incoming, input.random ?? Math.random);
+  const meetOutgoing = input.handoverAtSec ?? handoverAt(outgoing);
+  const meetIncoming = entrySec(incoming, input.incomingCue);
+  const kind: MixKind =
+    input.kind ??
+    chooseKind(rate, outgoing, incoming, input.random ?? Math.random, meetOutgoing, meetIncoming);
 
   const beats = input.beats ?? blendBeatsFor(outgoing, incoming);
   let durationSec = kind === 'beatmatched' ? (beats * 60) / outgoingBpm : PLAIN_MIX_SEC;

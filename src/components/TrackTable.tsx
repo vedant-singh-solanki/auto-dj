@@ -32,7 +32,10 @@ export function TrackTable() {
   const activeCrateId = useApp((s) => s.activeCrateId);
   const status = useApp((s) => s.status);
   const unplayable = useApp((s) => s.unplayable);
-  const { start, queueNext, enqueue, setRating, addToCrate, removeFromCrate } = useApp.getState();
+  const mode = useApp((s) => s.mode);
+  const selectedTrackId = useApp((s) => s.selectedTrackId);
+  const { start, queueNext, enqueue, setRating, addToCrate, removeFromCrate, selectTrack } =
+    useApp.getState();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('title');
@@ -128,7 +131,16 @@ export function TrackTable() {
               const available = track.supported && hasSource(track.id) && !tooLong && !broken;
 
               return (
-                <tr key={track.id} className="group border-b border-hairline last:border-0 hover:bg-surface-3">
+                <tr
+                  key={track.id}
+                  onClick={() => selectTrack(track.id)}
+                  className={[
+                    'group border-b border-hairline last:border-0 hover:bg-surface-3',
+                    // Only Export mode has anywhere to put a selection.
+                    mode === 'export' ? 'cursor-pointer' : '',
+                    mode === 'export' && selectedTrackId === track.id ? 'bg-surface-4' : '',
+                  ].join(' ')}
+                >
                   <td className="w-32 px-2 py-1">
                     <PreviewWave analysis={analysis} />
                   </td>

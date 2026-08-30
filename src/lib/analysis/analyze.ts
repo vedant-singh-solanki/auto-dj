@@ -101,6 +101,7 @@ export async function analyzeTrack(track: Track, buffer?: AudioBuffer): Promise<
     mixInSec: result.mixInSec,
     hookSec: result.hookSec,
     key: result.key,
+    vocal: result.vocal,
     mixOutSec: result.mixOutSec,
     analyzedAt: Date.now(),
   };

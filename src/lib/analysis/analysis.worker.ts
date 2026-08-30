@@ -31,6 +31,7 @@ export interface AnalyzeResult {
   mixOutSec: number;
   hookSec: number;
   key: DetectedKey;
+  vocal: Float32Array;
 }
 
 /** Onset envelope resolution. 512 samples is about 12ms — fine enough for a kick. */
@@ -295,6 +296,78 @@ function chromaVector(mono: Float32Array, sampleRate: number, fromSec: number, t
   return total > 0 ? chroma.map((value) => value / total) : chroma;
 }
 
+/**
+ * Where the singing is, roughly.
+ *
+ * True stem separation needs a neural model far too heavy to run in a browser,
+ * so this is the honest substitute: the human voice lives mostly between 300Hz
+ * and 3.4kHz — the same band the telephone network was built around — and it
+ * moves. A window with a lot of its energy in that band AND a lot of frame to
+ * frame variation is probably a voice; a steady mid-heavy pad is not.
+ *
+ * It cannot separate a vocal from a track. What it can do is say "there is
+ * probably singing here", which is enough for the one decision that matters:
+ * never fade two vocals over each other.
+ */
+function vocalCurve(mono: Float32Array, sampleRate: number, buckets: number): Float32Array {
+  const size = 2048;
+  const out = new Float32Array(buckets);
+  const counts = new Float32Array(buckets);
+  if (mono.length < size) return out;
+
+  const real = new Float32Array(size);
+  const imag = new Float32Array(size);
+  const window = new Float32Array(size);
+  for (let i = 0; i < size; i += 1) window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
+
+  const lowBin = Math.max(1, Math.floor((300 * size) / sampleRate));
+  const highBin = Math.min(size / 2, Math.floor((3400 * size) / sampleRate));
+
+  // One window every quarter second is plenty to describe a section.
+  const hop = Math.floor(sampleRate / 4);
+  let previous: Float32Array | null = null;
+
+  for (let offset = 0; offset + size < mono.length; offset += hop) {
+    for (let i = 0; i < size; i += 1) {
+      real[i] = mono[offset + i] * window[i];
+      imag[i] = 0;
+    }
+    fft(real, imag);
+
+    const magnitudes = new Float32Array(size / 2);
+    let total = 0;
+    let inBand = 0;
+    for (let bin = 1; bin < size / 2; bin += 1) {
+      const magnitude = Math.hypot(real[bin], imag[bin]);
+      magnitudes[bin] = magnitude;
+      total += magnitude;
+      if (bin >= lowBin && bin <= highBin) inBand += magnitude;
+    }
+
+    // How much the mid band changed since the last window. A held pad scores
+    // near zero here; a voice moving between words and pitches does not.
+    let flux = 0;
+    if (previous) {
+      for (let bin = lowBin; bin <= highBin; bin += 1) {
+        flux += Math.abs(magnitudes[bin] - previous[bin]);
+      }
+      flux /= Math.max(1, total);
+    }
+    previous = magnitudes;
+
+    const dominance = total > 0 ? inBand / total : 0;
+    // Both have to be present. Either alone is a poor predictor.
+    const likelihood = Math.max(0, Math.min(1, dominance * 1.4 * Math.min(1, flux * 8)));
+
+    const bucket = Math.min(buckets - 1, Math.floor((offset / sampleRate) * ENERGY_PER_SECOND));
+    out[bucket] += likelihood;
+    counts[bucket] += 1;
+  }
+
+  for (let i = 0; i < buckets; i += 1) if (counts[i] > 0) out[i] /= counts[i];
+  return out;
+}
+
 self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
   const { id, channels, sampleRate, bpm, beatOffset } = event.data;
   const mono = downmix(channels);
@@ -332,6 +405,7 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
   const hookSec = findHook(energy, mixInSec, mixOutSec);
   // Keyed from the body of the track, skipping intro and outro.
   const key = keyFromChroma(chromaVector(mono, sampleRate, mixInSec, mixOutSec));
+  const vocal = vocalCurve(mono, sampleRate, energy.length);
 
   const result: AnalyzeResult = {
     id,
@@ -345,6 +419,7 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
     mixOutSec,
     hookSec,
     key,
+    vocal,
   };
-  (self as unknown as Worker).postMessage(result, [peaks.buffer, energy.buffer]);
+  (self as unknown as Worker).postMessage(result, [peaks.buffer, energy.buffer, vocal.buffer]);
 };

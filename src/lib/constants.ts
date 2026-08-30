@@ -102,3 +102,10 @@ export const MAX_LIBRARY_TRACKS = 500;
  * land here, and a wrong key is worse than no key.
  */
 export const KEY_CONFIDENCE_FLOOR = 0.3;
+
+/**
+ * Above this vocal likelihood on both sides, a blend is replaced by a cut. Set
+ * deliberately low: a false positive costs a smooth transition, a false
+ * negative costs two people singing over each other.
+ */
+export const VOCAL_CLASH_THRESHOLD = 0.35;

@@ -45,6 +45,16 @@ import { MAX_LIBRARY_TRACKS, PREPARE_LEAD_SEC } from './lib/constants';
 export type FolderStatus = 'none' | 'needs-click' | 'ready';
 export type PlaybackStatus = 'idle' | 'starting' | 'playing' | 'paused';
 
+/**
+ * The two things this app is for, kept apart the way DJ software keeps them.
+ *
+ * Export is the desk: analysing, cueing, rating, organising — done in advance,
+ * in silence. Performance is the booth: two decks, a queue and no clutter.
+ * Mixing the two would mean either a preparation screen with a mixer bolted on,
+ * or a booth full of controls nobody touches mid-set.
+ */
+export type Mode = 'performance' | 'export';
+
 export interface UpNext {
   track: Track;
   reason: string;
@@ -101,6 +111,10 @@ interface AppState {
   crates: Crate[];
   /** Which crate the library and the DJ are limited to; null means everything. */
   activeCrateId: string | null;
+  /** Which environment is on screen. */
+  mode: Mode;
+  /** The track being prepared in Export mode. */
+  selectedTrackId: TrackId | null;
 
   status: PlaybackStatus;
   nowPlaying: LoadedTrack | null;
@@ -133,6 +147,8 @@ interface AppState {
   addToCrate: (crateId: string, trackId: TrackId) => void;
   removeFromCrate: (crateId: string, trackId: TrackId) => void;
   setActiveCrate: (id: string | null) => void;
+  setMode: (mode: Mode) => void;
+  selectTrack: (id: TrackId | null) => void;
   setMood: (mood: Mood) => void;
   setVolume: (volume: number) => void;
   dismissError: () => void;
@@ -161,6 +177,8 @@ export const useApp = create<AppState>((set, get) => ({
   ratings: new Map(),
   crates: [],
   activeCrateId: null,
+  mode: 'performance',
+  selectedTrackId: null,
 
   status: 'idle',
   nowPlaying: null,
@@ -522,6 +540,14 @@ export const useApp = create<AppState>((set, get) => ({
   setActiveCrate(id) {
     set({ activeCrateId: id });
     get().reshuffleQueue();
+  },
+
+  setMode(mode) {
+    set({ mode });
+  },
+
+  selectTrack(id) {
+    set({ selectedTrackId: id });
   },
 
   setMood(mood) {

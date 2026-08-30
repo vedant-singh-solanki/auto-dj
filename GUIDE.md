@@ -28,6 +28,21 @@ remembers the result forever. You never wait for it.
 
 ---
 
+## Two modes
+
+A tab switch at the top left, next to the app name.
+
+**Performance** is the booth — both waveforms, both decks, the transport and the
+queue. Everything below describes this mode unless it says otherwise.
+
+**Export** is the desk — playlists, the whole collection, and a preparation
+panel for whichever track you click: its tempo, key, length and genre, a
+waveform for setting where it comes in, its rating, and the playlists it is in.
+Nothing here makes a sound. Cueing a track properly means looking at it and
+deciding, which is not something to do one-handed mid-set.
+
+---
+
 ## The screen, top to bottom
 
 ### Top bar
@@ -86,8 +101,8 @@ Hot cues are saved forever, per track.
 | **Skip — mix the next one in now** | Doesn't cut. Starts the blend into the next track immediately. |
 | **Volume** | Master volume. |
 | **Next mix** | A live countdown to the next handover. |
-| **− 15s** | Bring the next mix forward by fifteen seconds. |
-| **+ 15s** | Hold this track fifteen seconds longer. |
+| **− 10s** | Bring the next mix forward by ten seconds. |
+| **+ 10s** | Hold this track ten seconds longer. |
 | **Where next: Cool down / Hold / Lift** | Steers what it picks next — calmer, the same, or more upbeat. |
 
 The − and + buttons can be pressed repeatedly. They won't let a mix be pushed
@@ -102,6 +117,9 @@ The queue, in order. **1** is next.
 - **✕** removes an entry, and the app picks something else to fill the gap.
 - **Re-pick** throws away the app's own suggestions and chooses again. Anything
   *you* put in the queue stays where it is — those are marked **your pick**.
+- **The little waveform on each row is a timeline.** Click it to set where that
+  track will come in, before it has reached a deck. The dashed line is where the
+  app would come in on its own; click the time to clear your choice.
 
 ### Playlists
 
@@ -159,6 +177,20 @@ It's built to behave like a DJ playing live, not a playlist with nice fades.
   over in the middle so two kick drums never fight, a filter lifts the outgoing
   track out from underneath, and a short echo throws on the last beats so it
   rings away instead of stopping.
+- **It does not blend everything.** A long crossfade is right for house and
+  wrong for hip-hop, so it picks a style per pair:
+  - a **blend** when the tempos lock and there is room for one;
+  - a **cut** — track A stops dead on the downbeat, nothing overlaps — when the
+    incoming track is a big lift, or when **both tracks have singing** at the
+    point they meet. Two voices over each other is the one thing a blend does
+    that no DJ would;
+  - a **rewind** — A spun backwards to a stop before B lands — when the tempos
+    are too far apart to match and it is worth making the gear change on purpose.
+- **It mixes in key.** Every track is analysed for its musical key and placed on
+  the Camelot wheel (the `8B`-style codes in the collection). Tracks that share
+  a key, sit one step round the wheel, or are each other's relative major and
+  minor are favoured. Where the detector is unsure, the key shows as `—` and is
+  ignored rather than guessed at.
 - **If two tracks can't be matched** — too far apart in tempo, or the beat isn't
   clear enough to trust — it does a plain crossfade rather than pitching a track
   until it sounds wrong.

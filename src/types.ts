@@ -37,7 +37,7 @@ export interface Track {
 }
 
 /** Bump when the analysis maths changes, to invalidate every cached result. */
-export const ANALYSIS_VERSION = 4;
+export const ANALYSIS_VERSION = 5;
 
 export interface Analysis {
   id: TrackId;
@@ -68,6 +68,11 @@ export interface Analysis {
   hookSec: number;
   /** Detected musical key, for harmonic mixing. */
   key?: DetectedKey;
+  /**
+   * Likelihood of singing, per energy bucket, 0..1. Not a stem — see the worker
+   * — but enough to avoid fading two vocals over each other.
+   */
+  vocal?: Float32Array;
   /** Seconds. Where the outgoing track should begin handing over. */
   mixOutSec: number;
 
