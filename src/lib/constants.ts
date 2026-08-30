@@ -109,3 +109,6 @@ export const KEY_CONFIDENCE_FLOOR = 0.3;
  * negative costs two people singing over each other.
  */
 export const VOCAL_CLASH_THRESHOLD = 0.35;
+
+/** Length of the outro loop used to extend a mix, in beats. Two bars. */
+export const LOOP_BEATS = 8;

@@ -64,6 +64,8 @@ export class Deck {
   private endsAt = Infinity;
   /** Set while the deck is gliding back to the track's own tempo. */
   private glide: { target: number; endsAt: number } | null = null;
+  /** Set while a section is looping, so position can be wrapped into it. */
+  private loop: { startSec: number; endSec: number } | null = null;
 
   constructor(id: DeckId, destination: AudioNode) {
     const ctx = audioContext();
@@ -166,6 +168,7 @@ export class Deck {
 
     this.source = source;
     this.glide = null;
+    this.loop = null;
     this.startedAt = when;
     this.startOffset = offset;
     this.rate = rate;
@@ -233,13 +236,48 @@ export class Deck {
     fader.linearRampToValueAtTime(0, at + durationSec);
   }
 
+  /**
+   * Loops a section of the track — the technique for extending a mix when the
+   * outgoing track's outro is too short to blend over.
+   *
+   * The buffer source does the looping itself, so it stays sample-accurate; all
+   * this has to do is remember where the loop is, because position bookkeeping
+   * downstream assumes time only moves forwards.
+   */
+  setLoop(startSec: number, endSec: number): void {
+    if (!this.source || !this.loaded || endSec <= startSec) return;
+    this.source.loopStart = Math.max(0, startSec);
+    this.source.loopEnd = Math.min(this.loaded.buffer.duration, endSec);
+    this.source.loop = true;
+    this.loop = { startSec: this.source.loopStart, endSec: this.source.loopEnd };
+  }
+
+  clearLoop(): void {
+    if (this.source) this.source.loop = false;
+    this.loop = null;
+  }
+
+  get isLooping(): boolean {
+    return this.loop !== null;
+  }
+
   /** Position within the track, in track seconds, at an AudioContext time. */
   positionAt(contextTime: number): number {
     if (!this.loaded) return 0;
     if (!this.source) return this.startOffset;
     if (this.glide && contextTime >= this.glide.endsAt) this.anchor(this.glide.endsAt, this.glide.target);
+
     const elapsed = Math.max(0, contextTime - this.startedAt);
-    return Math.min(this.loaded.buffer.duration, this.startOffset + elapsed * this.rate);
+    const raw = this.startOffset + elapsed * this.rate;
+
+    // Inside a loop the playhead comes back round, so the reported position has
+    // to as well — otherwise the waveform scrolls off the end of a track that
+    // is audibly still going.
+    if (this.loop && raw > this.loop.endSec) {
+      const span = this.loop.endSec - this.loop.startSec;
+      if (span > 0) return this.loop.startSec + ((raw - this.loop.startSec) % span);
+    }
+    return Math.min(this.loaded.buffer.duration, raw);
   }
 
   /**
@@ -338,6 +376,7 @@ export class Deck {
     this.stopNow();
     this.loaded = null;
     this.glide = null;
+    this.loop = null;
     this.endsAt = Infinity;
   }
 }

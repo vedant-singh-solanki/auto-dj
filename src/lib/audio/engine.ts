@@ -171,6 +171,7 @@ export class MixEngine {
     this.decks[transition.to].glideToRate(1, RATE_GLIDE_SEC);
 
     const retired = this.decks[transition.from];
+    retired.clearLoop();
     forceParam(retired.fader.gain, 0);
     retired.resetEq();
     retired.unload();

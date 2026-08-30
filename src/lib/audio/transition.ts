@@ -9,6 +9,7 @@ import {
   SEGMENT_TARGET_SEC,
   ENERGY_PER_SECOND,
   VOCAL_CLASH_THRESHOLD,
+  LOOP_BEATS,
 } from '../constants';
 import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ } from './deck';
 
@@ -44,6 +45,11 @@ export interface MixPlan {
   offsetSec: number;
   /** Blend length expressed in beats of the outgoing track. */
   beats: number;
+  /**
+   * A section of the outgoing track to hold on repeat, when its outro is too
+   * short to blend over. The mixing window becomes as long as it needs to be.
+   */
+  loop?: { startSec: number; endSec: number };
 }
 
 export function beatSec(analysis: Analysis): number {
@@ -278,10 +284,23 @@ export function planMix(input: MixInput): MixPlan {
   const remaining = Math.max(0, outgoing.durationSec - earliest);
 
   let spanInTrack = durationSec * outgoingRate;
+  let loop: MixPlan['loop'];
+
   if (spanInTrack > remaining) {
-    // The track is nearly over: shorten the blend rather than run off the end.
-    spanInTrack = Math.max(MIN_MIX_SEC * outgoingRate, remaining * 0.8);
-    durationSec = spanInTrack / outgoingRate;
+    // Not enough track left to blend over. A DJ does not shorten the mix here —
+    // they catch a loop on the outro and hold it for as long as the blend needs.
+    // That only works on a trustworthy grid, so anything else falls back to
+    // shortening, which is what happened before loops existed.
+    const beat = beatSec(outgoing);
+    const loopSpan = beat * LOOP_BEATS;
+
+    if (outgoing.bpmConfidence >= CONFIDENCE_FLOOR && outgoing.mixOutSec - loopSpan > earliest) {
+      const loopEnd = snapToPhrase(outgoing, outgoing.mixOutSec, entrySec(outgoing));
+      loop = { startSec: Math.max(0, loopEnd - loopSpan), endSec: loopEnd };
+    } else {
+      spanInTrack = Math.max(MIN_MIX_SEC * outgoingRate, remaining * 0.8);
+      durationSec = spanInTrack / outgoingRate;
+    }
   }
 
   const latest = Math.max(earliest, outgoing.durationSec - spanInTrack);
@@ -318,6 +337,7 @@ export function planMix(input: MixInput): MixPlan {
     rate: rate ?? 1,
     offsetSec,
     beats: Math.max(1, Math.round(durationSec / (60 / outgoingBpm))),
+    loop,
   };
 }
 
@@ -345,6 +365,10 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   const endAt = startAt + durationSec;
   // One beat of the outgoing track, as heard. Drives the echo timing.
   const outgoingBeatSec = plan.beats > 0 ? durationSec / plan.beats : 0;
+
+  // Catch the outro loop first, so the outgoing track has somewhere to sit for
+  // as long as the blend needs. It is stopped at the end either way.
+  if (plan.loop) outgoingDeck.setLoop(plan.loop.startSec, plan.loop.endSec);
 
   // A cut is not a short crossfade — it is the absence of one. Track A stops on
   // the downbeat and B is already at full level. Nothing overlaps, which is the
