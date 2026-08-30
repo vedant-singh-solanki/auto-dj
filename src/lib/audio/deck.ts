@@ -32,6 +32,14 @@ export const FILTER_SWEEP_HZ = 900;
 /** Resting position of the highpass: out of the way. */
 export const FILTER_OPEN_HZ = 20;
 
+/**
+ * How long a parameter is given to move when it is being reset rather than
+ * performed. Short enough that nobody hears a fade, long enough that the change
+ * is a slope instead of a step — which is the difference between silence and a
+ * click. Also the length of the edges on a cut, for the same reason.
+ */
+export const PARAM_SETTLE_SEC = 0.035;
+
 export interface LoadedTrack {
   track: Track;
   analysis: Analysis;
@@ -130,19 +138,36 @@ export class Deck {
     this.resetEq();
   }
 
-  /** Returns the whole channel strip to neutral: flat EQ, filter open, no echo. */
+  /**
+   * Returns the whole channel strip to neutral: flat EQ, filter open, no echo.
+   *
+   * Every move here is a short ramp rather than a jump. This is called on a deck
+   * that has just finished a blend, and a deck that has just finished a blend is
+   * not necessarily silent — the echo send is still open, carrying the tail of
+   * the throw. Snapping a gain from a third of the way up to zero puts a step in
+   * the waveform, and a step in a waveform is a click. Thirty-five milliseconds
+   * is too short to hear as a fade and long enough to not be heard at all.
+   */
   resetEq(): void {
     const now = audioContext().currentTime;
+    const settled = now + PARAM_SETTLE_SEC;
 
-    this.highpass.frequency.cancelScheduledValues(now);
-    this.highpass.frequency.setValueAtTime(FILTER_OPEN_HZ, now);
+    // Frequency is ramped exponentially because pitch is logarithmic; a linear
+    // sweep back down from 900Hz would spend most of its time in the top octave.
+    const cutoff = this.highpass.frequency;
+    cutoff.cancelScheduledValues(now);
+    cutoff.setValueAtTime(Math.max(FILTER_OPEN_HZ, cutoff.value), now);
+    cutoff.exponentialRampToValueAtTime(FILTER_OPEN_HZ, settled);
 
-    this.echoSend.gain.cancelScheduledValues(now);
-    this.echoSend.gain.setValueAtTime(0, now);
+    const send = this.echoSend.gain;
+    send.cancelScheduledValues(now);
+    send.setValueAtTime(send.value, now);
+    send.linearRampToValueAtTime(0, settled);
 
     for (const band of [this.low, this.mid, this.high]) {
       band.gain.cancelScheduledValues(now);
-      band.gain.setValueAtTime(0, now);
+      band.gain.setValueAtTime(band.gain.value, now);
+      band.gain.linearRampToValueAtTime(0, settled);
     }
   }
 

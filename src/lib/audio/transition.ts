@@ -11,7 +11,7 @@ import {
   VOCAL_CLASH_THRESHOLD,
   LOOP_BEATS,
 } from '../constants';
-import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ } from './deck';
+import { BASS_CUT_DB, type Deck, FILTER_OPEN_HZ, FILTER_SWEEP_HZ, PARAM_SETTLE_SEC } from './deck';
 import type { SetStyle } from '../dj/styles';
 
 /**
@@ -401,8 +401,14 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   // whole point: two vocals talking over each other is what a cut avoids.
   if (plan.kind === 'cut') {
     incomingDeck.start(startAt, offsetSec, rate, onIncomingEnded);
-    forceAt(incomingDeck.fader.gain, 1, startAt);
-    outgoingDeck.stopAt(startAt + 0.01);
+    // Both edges are ramped over a few milliseconds. A cut that truly steps from
+    // full level to zero chops the waveform wherever it happens to be, and a
+    // vertical edge in a waveform is a click — the one part of a hard cut that
+    // sounds like a fault rather than a decision. This is far too short to hear
+    // as a fade, so the cut still lands as a cut.
+    edgeIn(incomingDeck.fader.gain, startAt);
+    edgeOut(outgoingDeck.fader.gain, startAt);
+    outgoingDeck.stopAt(startAt + PARAM_SETTLE_SEC + 0.02);
     return;
   }
 
@@ -410,7 +416,7 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   if (plan.kind === 'backspin') {
     outgoingDeck.backspin(startAt, durationSec, outgoingPositionAt(outgoingDeck, startAt));
     incomingDeck.start(startAt + durationSec, offsetSec, rate, onIncomingEnded);
-    forceAt(incomingDeck.fader.gain, 1, startAt + durationSec);
+    edgeIn(incomingDeck.fader.gain, startAt + durationSec);
     return;
   }
 
@@ -443,13 +449,21 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   // Filter sweep out. A DJ rides the highpass up as a track leaves, so it
   // thins from underneath rather than simply getting quieter. Starts later
   // than the bass swap so the two read as one gesture rather than two.
+  //
+  // It finishes before the fade does, deliberately. Sweeping right up to the
+  // end put the most audible part of the gesture where the fader had already
+  // taken the level to nothing, so the sweep went unheard and the outgoing
+  // track's last moments were carried entirely by a level drop — which is the
+  // part that sounded abrupt. Landing early means the track is already thin by
+  // the time it goes, and the two gestures are heard one after the other rather
+  // than piled on the same instant.
   const outgoingFilter = outgoingDeck.highpass.frequency;
   outgoingFilter.cancelScheduledValues(startAt);
   outgoingFilter.setValueAtTime(FILTER_OPEN_HZ, startAt);
-  outgoingFilter.setValueAtTime(FILTER_OPEN_HZ, startAt + durationSec * 0.45);
+  outgoingFilter.setValueAtTime(FILTER_OPEN_HZ, startAt + durationSec * 0.4);
   // Exponential, because pitch is logarithmic — a linear sweep does nothing
   // for the first half and then lurches.
-  outgoingFilter.exponentialRampToValueAtTime(FILTER_SWEEP_HZ, endAt);
+  outgoingFilter.exponentialRampToValueAtTime(FILTER_SWEEP_HZ, startAt + durationSec * 0.88);
 
   // Echo throw on the last beats, so the outgoing track rings away instead of
   // simply stopping. Only when the tempo is known, since the delay has to be
@@ -461,20 +475,44 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
     const send = outgoingDeck.echoSend.gain;
     send.cancelScheduledValues(startAt);
     send.setValueAtTime(0, startAt);
+    // Held shut until the throw is nearly due. Opening it gradually from the
+    // start of the blend meant echo was washing over the whole transition —
+    // every beat of the outgoing track smeared into the incoming one, which
+    // reads as mud rather than as a gesture. A throw should arrive.
+    send.setValueAtTime(0, Math.max(startAt, throwAt - outgoingBeatSec));
     send.linearRampToValueAtTime(ECHO_SEND, throwAt);
-    // Cut the send at the end; the feedback loop carries the tail out on its
-    // own, which is what makes it decay rather than stop dead.
-    send.setValueAtTime(ECHO_SEND, endAt);
-    send.linearRampToValueAtTime(0, endAt + outgoingBeatSec);
+    // Shut before the track is stopped, not after — this was the click.
+    //
+    // The send is tapped ahead of the fader, so it carries the outgoing track at
+    // full level no matter where the crossfade has got to. Leaving it open past
+    // the end of the blend meant the source was stopped while a full-amplitude
+    // signal was still feeding the delay line: the delay saw the waveform drop
+    // to nothing in one sample, stored that edge, and handed it back a beat
+    // later as a crack, which the feedback loop then repeated.
+    //
+    // Closing it first costs nothing. Everything the throw needs is already
+    // inside the delay line by then, and the feedback loop carries it out — the
+    // tail decays exactly as before, without the edge in front of it.
+    send.setValueAtTime(ECHO_SEND, endAt - PARAM_SETTLE_SEC);
+    send.linearRampToValueAtTime(0, endAt);
   }
 
-  outgoingDeck.stopAt(endAt + 0.05);
+  // Only after every send that could still be reading this deck has been closed.
+  outgoingDeck.stopAt(endAt + PARAM_SETTLE_SEC + 0.02);
 }
 
-/** Sets a parameter at an exact future time, clearing anything in its way. */
-function forceAt(param: AudioParam, value: number, at: number): void {
+/** Brings a fader up from silence over the shortest slope that isn't a step. */
+function edgeIn(param: AudioParam, at: number): void {
   param.cancelScheduledValues(at);
-  param.setValueAtTime(value, at);
+  param.setValueAtTime(0, at);
+  param.linearRampToValueAtTime(1, at + PARAM_SETTLE_SEC);
+}
+
+/** Takes a fader down to silence over the same slope. */
+function edgeOut(param: AudioParam, at: number): void {
+  param.cancelScheduledValues(at);
+  param.setValueAtTime(1, at);
+  param.linearRampToValueAtTime(0, at + PARAM_SETTLE_SEC);
 }
 
 /** Where the outgoing track will be when the transition begins. */
