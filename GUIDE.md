@@ -35,10 +35,10 @@ A tab switch at the top left, next to the app name.
 **Performance** is the booth — both waveforms, both decks, the transport and the
 queue. Everything below describes this mode unless it says otherwise.
 
-**Export** is the desk — playlists, the whole collection, and a preparation
-panel for whichever track you click: its tempo, key, length and genre, a
-waveform for setting where it comes in, its rating, and the playlists it is in.
-Nothing here makes a sound. Cueing a track properly means looking at it and
+**Export** is the desk — playlists, the whole collection, a preparation panel
+for whichever track you click (its tempo, key, length and genre, a waveform for
+setting where it comes in, its rating, and the playlists it is in), and the
+backup buttons. Nothing here makes a sound. Cueing a track properly means looking at it and
 deciding, which is not something to do one-handed mid-set.
 
 ---
@@ -52,6 +52,7 @@ deciding, which is not something to do one-handed mid-set.
 | **Add files** | Adds individual songs to what you already have. Nothing is replaced. |
 | **Add folder** | Connects another folder alongside the current one. Your music can live in several places. |
 | **Change folder** | Replaces the connected folders with one new one. |
+| **Help** | Opens a panel with these answers, the keyboard shortcuts, the version and a link to the source code. Escape closes it. |
 
 ### The two big waveforms
 
@@ -108,6 +109,22 @@ Hot cues are saved forever, per track.
 The − and + buttons can be pressed repeatedly. They won't let a mix be pushed
 past the end of a track or dragged back before there's room to do it properly.
 
+### Set style
+
+Four presets, sitting under the transport, that change the character of the
+whole set. They move four things at once, which is why they are one control
+rather than four sliders — those numbers only make sense together.
+
+| Style | Each track plays | Blend | Cuts instead of blending | Energy |
+|---|---|---|---|---|
+| **Club** | about 70s | 4 bars | half the time | builds steadily |
+| **Party** | about 60s | 2 bars | most of the time | high from the start |
+| **Lounge** | about 2 minutes | 8 bars | almost never | stays calm |
+| **Radio** | about 3 minutes | 4 bars | never | held level |
+
+Your choice is remembered. Changing it re-plans the DJ's part of the queue —
+anything you queued yourself stays where you put it.
+
 ### Coming up
 
 The queue, in order. **1** is next.
@@ -157,6 +174,30 @@ Some rows can't be played, and say why:
 Playable: `mp3`, `mp4`, `m4a`, `m4v`, `aac`, `wav`, `flac`, `ogg`, `opus`.
 Video files work — it takes the audio and ignores the picture.
 
+You can load up to **500 tracks**. Past that it stops adding and says so. It is
+a limit on what one browser tab can hold in memory and analyse without becoming
+slow, not an arbitrary cap — use playlists to work within it.
+
+### Backup
+
+Bottom right of Export mode. **Save a backup** writes a `.autodj.json` file to
+your downloads holding your cue points, hot cues, ratings and playlists. **The
+music is not in it** — only what you decided about it, so it is a small file.
+
+This is how you move your work to another computer, and how you keep it safe
+from clearing your browser data. Put the file in Dropbox or email it to
+yourself, then use **Restore from a backup** on the other machine.
+
+It matches tracks by the files themselves — name, size and when they were last
+changed — not by where they are kept. So a cue point you set on one computer
+lands on the right track on another, even if the folder is somewhere completely
+different.
+
+**Restoring merges, it doesn't replace.** Nothing you have done on the machine
+you are restoring onto is thrown away, and a playlist whose name already exists
+is updated rather than duplicated — restoring the same file twice won't leave
+you with two of everything.
+
 ---
 
 ## How it mixes
@@ -168,7 +209,8 @@ It's built to behave like a DJ playing live, not a playlist with nice fades.
   beginning. (The very first track of a set is the exception: it plays from
   0:00, because there's nothing to mix it against.)
 - **Each track gets about 70–80 seconds**, then hands over. The exact length
-  lands on a musical phrase, so it varies slightly with tempo.
+  lands on a musical phrase, so it varies slightly with tempo — and the **set
+  style** moves it, from about a minute on Party to three on Radio.
 - **It matches tempo** within about 8%, speeding one track up or slowing it
   down. Half and double time count as a match.
 - **It lines up the phrasing**, not just the beat, so choruses land over
@@ -191,6 +233,10 @@ It's built to behave like a DJ playing live, not a playlist with nice fades.
   a key, sit one step round the wheel, or are each other's relative major and
   minor are favoured. Where the detector is unsure, the key shows as `—` and is
   ignored rather than guessed at.
+- **It loops the outro when a track runs out early.** If the outgoing track would
+  finish before the blend does, its last few bars are looped so the mix has
+  something to sit on, rather than the blend ending in silence. The loop is
+  released the moment the incoming track is established.
 - **If two tracks can't be matched** — too far apart in tempo, or the beat isn't
   clear enough to trust — it does a plain crossfade rather than pitching a track
   until it sounds wrong.
@@ -215,8 +261,14 @@ It's built to behave like a DJ playing live, not a playlist with nice fades.
   a folder, but not a loose file. Anything added file-by-file needs adding again
   next visit. Your cue points and ratings survive though — they're tied to the
   file itself, so re-adding a track brings its settings back.
+- **Anything you delete can be undone.** Removing a track from the queue,
+  clearing a cue point or a hot cue, deleting a playlist — each puts a message at
+  the bottom of the screen with an **Undo** button on it. A restored playlist
+  comes back with its tracks. The message goes after a few seconds, and the offer
+  goes with it.
 - **Clearing your browser's site data** wipes the analysis, cues, ratings and
-  playlists. That's the "start over" button.
+  playlists. That's the "start over" button — and the reason to keep a backup
+  file if any of that took you time to set up.
 - **It needs the tab open** to keep playing.
 
 ---
@@ -237,3 +289,15 @@ to enter. That overrides the app's guess for good.
 probably too far apart to match, so it's crossfading rather than beat-mixing.
 Check the BPM column — if they aren't within about 8% of each other (or double /
 half), that's expected.
+
+**Every mix sounds the same, or nothing ever blends.** Check the **set style**.
+Radio never cuts, Party cuts most of the time. Club is the middle ground.
+
+**A backup restored but a track's cue point didn't come back.** The file has
+changed since the backup was made — re-encoded, re-tagged, or re-downloaded.
+The app identifies tracks by the file itself, so an edited file counts as a new
+one. Set the cue again.
+
+**It says a backup was made by a newer version.** The file came from a machine
+running a more recent build than this one. Reload that machine's page to update
+it, or make the backup from the older one.
