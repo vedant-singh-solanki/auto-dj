@@ -190,6 +190,49 @@ export class Deck {
     this.start(audioContext().currentTime + 0.02, target, rate, onEnded);
   }
 
+  /**
+   * The rewind: spins the track backwards to a stop.
+   *
+   * A buffer source cannot play at a negative rate, so this builds a reversed
+   * copy of the seconds leading up to `fromSec` and plays that instead, with
+   * the rate accelerating the way a hand-spun platter does. The regular source
+   * is stopped at the same instant so the two never overlap.
+   */
+  backspin(at: number, durationSec: number, fromSec: number): void {
+    if (!this.loaded) return;
+    const ctx = audioContext();
+    const buffer = this.loaded.buffer;
+
+    // Four seconds of run-up is more than a spin ever gets through.
+    const grabSec = Math.min(4, fromSec);
+    const frames = Math.max(1, Math.floor(grabSec * buffer.sampleRate));
+    const startFrame = Math.max(0, Math.floor(fromSec * buffer.sampleRate) - frames);
+
+    const reversed = ctx.createBuffer(buffer.numberOfChannels, frames, buffer.sampleRate);
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const source = buffer.getChannelData(channel);
+      const target = reversed.getChannelData(channel);
+      for (let i = 0; i < frames; i += 1) target[i] = source[startFrame + frames - 1 - i];
+    }
+
+    this.stopAt(at);
+
+    const spin = ctx.createBufferSource();
+    spin.buffer = reversed;
+    spin.connect(this.trim);
+    // Accelerating, the way the platter speeds up as it is pushed backwards.
+    spin.playbackRate.setValueAtTime(1, at);
+    spin.playbackRate.exponentialRampToValueAtTime(6, at + durationSec);
+    spin.start(at);
+    spin.stop(at + durationSec);
+
+    // The pitch rising and the level falling together is what sells it.
+    const fader = this.fader.gain;
+    fader.cancelScheduledValues(at);
+    fader.setValueAtTime(1, at);
+    fader.linearRampToValueAtTime(0, at + durationSec);
+  }
+
   /** Position within the track, in track seconds, at an AudioContext time. */
   positionAt(contextTime: number): number {
     if (!this.loaded) return 0;

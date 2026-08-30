@@ -9,6 +9,7 @@
  * per channel and the waveform must never stutter.
  */
 import { ENERGY_PER_SECOND, HOOK_WINDOW_SEC, PEAKS_PER_SECOND, SEGMENT_MIN_SEC } from '../constants';
+import { type DetectedKey, keyFromChroma } from './key';
 
 export interface AnalyzeRequest {
   id: string;
@@ -29,6 +30,7 @@ export interface AnalyzeResult {
   mixInSec: number;
   mixOutSec: number;
   hookSec: number;
+  key: DetectedKey;
 }
 
 /** Onset envelope resolution. 512 samples is about 12ms — fine enough for a kick. */
@@ -205,6 +207,94 @@ function findHook(energy: Float32Array, mixInSec: number, mixOutSec: number): nu
   return entry / ENERGY_PER_SECOND;
 }
 
+/**
+ * In-place radix-2 FFT. Small enough to write out rather than pull a library in
+ * for, and this is the only place the app needs a spectrum offline.
+ */
+function fft(real: Float32Array, imag: Float32Array): void {
+  const n = real.length;
+  for (let i = 1, j = 0; i < n; i += 1) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [real[i], real[j]] = [real[j], real[i]];
+      [imag[i], imag[j]] = [imag[j], imag[i]];
+    }
+  }
+
+  for (let len = 2; len <= n; len <<= 1) {
+    const angle = (-2 * Math.PI) / len;
+    const wReal = Math.cos(angle);
+    const wImag = Math.sin(angle);
+    for (let i = 0; i < n; i += len) {
+      let curReal = 1;
+      let curImag = 0;
+      for (let k = 0; k < len / 2; k += 1) {
+        const aReal = real[i + k];
+        const aImag = imag[i + k];
+        const bReal = real[i + k + len / 2] * curReal - imag[i + k + len / 2] * curImag;
+        const bImag = real[i + k + len / 2] * curImag + imag[i + k + len / 2] * curReal;
+        real[i + k] = aReal + bReal;
+        imag[i + k] = aImag + bImag;
+        real[i + k + len / 2] = aReal - bReal;
+        imag[i + k + len / 2] = aImag - bImag;
+        const nextReal = curReal * wReal - curImag * wImag;
+        curImag = curReal * wImag + curImag * wReal;
+        curReal = nextReal;
+      }
+    }
+  }
+}
+
+/**
+ * How much energy sits on each of the twelve pitch classes across the track.
+ *
+ * Analysed from the body of the track rather than all of it — intros and
+ * fade-outs are often just a pad or a filter sweep and skew the answer. Only
+ * every fourth window is used, which is plenty for a global average and keeps
+ * this from doubling the cost of analysis.
+ */
+function chromaVector(mono: Float32Array, sampleRate: number, fromSec: number, toSec: number): number[] {
+  const size = 4096;
+  const hop = size * 4;
+  const chroma = new Array<number>(12).fill(0);
+
+  const start = Math.max(0, Math.floor(fromSec * sampleRate));
+  const end = Math.min(mono.length, Math.floor(toSec * sampleRate));
+
+  const real = new Float32Array(size);
+  const imag = new Float32Array(size);
+  // Precomputed Hann window: without it, every frame leaks across bins.
+  const window = new Float32Array(size);
+  for (let i = 0; i < size; i += 1) window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
+
+  for (let offset = start; offset + size < end; offset += hop) {
+    for (let i = 0; i < size; i += 1) {
+      real[i] = mono[offset + i] * window[i];
+      imag[i] = 0;
+    }
+    fft(real, imag);
+
+    // Only the musical range matters: below A0 is rumble, above ~5kHz the
+    // harmonics of everything smear together.
+    const minBin = Math.max(1, Math.floor((27.5 * size) / sampleRate));
+    const maxBin = Math.min(size / 2, Math.floor((5000 * size) / sampleRate));
+    for (let bin = minBin; bin < maxBin; bin += 1) {
+      const magnitude = Math.hypot(real[bin], imag[bin]);
+      if (magnitude <= 0) continue;
+      const frequency = (bin * sampleRate) / size;
+      // MIDI note number, then fold to a pitch class. 69 = A4 = 440Hz.
+      const midi = 69 + 12 * Math.log2(frequency / 440);
+      const pitchClass = ((Math.round(midi) % 12) + 12) % 12;
+      chroma[pitchClass] += magnitude;
+    }
+  }
+
+  const total = chroma.reduce((sum, value) => sum + value, 0);
+  return total > 0 ? chroma.map((value) => value / total) : chroma;
+}
+
 self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
   const { id, channels, sampleRate, bpm, beatOffset } = event.data;
   const mono = downmix(channels);
@@ -240,6 +330,8 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
   const bpmConfidence = gridConfidence(onsetEnvelope(mono), sampleRate, bpm, beatOffset, durationSec);
   const { mixInSec, mixOutSec } = findMixPoints(energy, durationSec);
   const hookSec = findHook(energy, mixInSec, mixOutSec);
+  // Keyed from the body of the track, skipping intro and outro.
+  const key = keyFromChroma(chromaVector(mono, sampleRate, mixInSec, mixOutSec));
 
   const result: AnalyzeResult = {
     id,
@@ -252,6 +344,7 @@ self.onmessage = (event: MessageEvent<AnalyzeRequest>) => {
     mixInSec,
     mixOutSec,
     hookSec,
+    key,
   };
   (self as unknown as Worker).postMessage(result, [peaks.buffer, energy.buffer]);
 };

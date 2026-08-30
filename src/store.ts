@@ -32,7 +32,7 @@ import {
 } from './lib/library/pickFolder';
 import { chooseNext, planQueue, prepareTrack } from './lib/dj/autoDj';
 import { loadHistory, recordPlayed, startSet } from './lib/dj/history';
-import { PREPARE_LEAD_SEC } from './lib/constants';
+import { MAX_LIBRARY_TRACKS, PREPARE_LEAD_SEC } from './lib/constants';
 
 /**
  * All application state, and the auto-DJ control loop that drives it.
@@ -261,8 +261,12 @@ export const useApp = create<AppState>((set, get) => ({
   async addTrackFiles(files) {
     try {
       set({ error: null, importing: { phase: 'scanning', done: 0, total: 0, label: '' } });
-      const tracks = await addFiles(files, (importing) => set({ importing }));
-      finishImport(set, tracks);
+      let overflow: number | undefined;
+      const tracks = await addFiles(files, (importing) => {
+        if (importing.overflow) overflow = importing.overflow;
+        set({ importing });
+      });
+      finishImport(set, tracks, overflow);
       set({
         folderStatus: 'ready',
         folderName: folderHandles.length > 0 ? describeFolders(folderHandles) : 'Added files',
@@ -605,12 +609,21 @@ function describeFolders(handles: FileSystemDirectoryHandle[]): string | null {
  */
 async function rescan(set: Setter): Promise<void> {
   set({ importing: { phase: 'scanning', done: 0, total: 0, label: '' } });
-  const tracks = await importFromFolders(folderHandles, (importing) => set({ importing }));
-  finishImport(set, tracks);
+  let overflow: number | undefined;
+  const tracks = await importFromFolders(folderHandles, (importing) => {
+    if (importing.overflow) overflow = importing.overflow;
+    set({ importing });
+  });
+  finishImport(set, tracks, overflow);
   set({ folderStatus: 'ready' });
 }
 
-function finishImport(set: Setter, tracks: Track[]): void {
+function finishImport(set: Setter, tracks: Track[], overflow?: number): void {
+  if (overflow) {
+    set({
+      error: `This holds ${MAX_LIBRARY_TRACKS} tracks, so ${overflow} were left out. Point it at a smaller folder, or split your music across playlists.`,
+    });
+  }
   set({ tracks, importing: null });
   // Everything gets analysed eventually; the player just does not wait for it.
   enqueueBackground(tracks);

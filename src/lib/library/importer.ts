@@ -2,6 +2,7 @@ import type { Track } from '../../types';
 import { trackIdFor } from '../../types';
 import { allTracks, pruneTracks, putTracks } from './db';
 import { clearSources, registerSource } from './fileSource';
+import { MAX_LIBRARY_TRACKS } from '../constants';
 import { scanFolder, scannedFilesFromInput } from './scan';
 import { readTags } from './tags';
 
@@ -13,6 +14,8 @@ export interface ImportProgress {
   total: number;
   /** A short line for the UI: the folder being read, or the current file. */
   label: string;
+  /** How many files the library ceiling turned away, if any. */
+  overflow?: number;
 }
 
 /** Tag reads are I/O bound; a handful at a time keeps the disk busy without
@@ -27,13 +30,21 @@ interface Candidate {
 }
 
 async function buildTracks(
-  candidates: Candidate[],
+  candidatesIn: Candidate[],
   onProgress: (p: ImportProgress) => void,
   signal: AbortSignal | undefined,
   options: { prune: boolean },
 ): Promise<Track[]> {
   // Tracks already imported keep their tags — a re-scan should be cheap.
   const known = new Map((await allTracks()).map((t) => [t.id, t]));
+  let candidates = candidatesIn;
+
+  // The ceiling counts the whole library, so adding files has to allow for what
+  // is already there; a full rescan is starting from nothing.
+  const alreadyHeld = options.prune ? 0 : known.size;
+  const room = Math.max(0, MAX_LIBRARY_TRACKS - alreadyHeld);
+  const overflow = Math.max(0, candidates.length - room);
+  if (overflow > 0) candidates = candidates.slice(0, room);
 
   const results: Track[] = [];
   let done = 0;
@@ -82,7 +93,13 @@ async function buildTracks(
   if (options.prune) await pruneTracks(new Set(results.map((t) => t.id)));
 
   const library = options.prune ? results : await allTracks();
-  onProgress({ phase: 'done', done: results.length, total: candidates.length, label: '' });
+  onProgress({
+    phase: 'done',
+    done: results.length,
+    total: candidates.length,
+    label: '',
+    overflow: overflow > 0 ? overflow : undefined,
+  });
   return library;
 }
 

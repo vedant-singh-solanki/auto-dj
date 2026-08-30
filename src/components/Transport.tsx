@@ -12,7 +12,7 @@ import { LiveText } from './Live';
  */
 
 /** How far one press of the earlier/later buttons moves the handover. */
-const NUDGE_SEC = 15;
+const NUDGE_SEC = 10;
 
 const MOODS: { value: Mood; label: string; hint: string }[] = [
   { value: 'cool', label: 'Cool down', hint: 'Prefer calmer tracks next' },
@@ -134,19 +134,19 @@ export function Transport() {
             type="button"
             onClick={() => nudgeHandover(-NUDGE_SEC)}
             disabled={!playing}
-            title="Bring the next mix forward by 15 seconds"
+            title="Bring the next mix forward by 10 seconds"
             className="rounded-md btn-gear px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-accent-line hover:text-ink disabled:opacity-35"
           >
-            − 15s
+            − 10s
           </button>
           <button
             type="button"
             onClick={() => nudgeHandover(NUDGE_SEC)}
             disabled={!playing}
-            title="Hold this track for 15 seconds longer"
+            title="Hold this track for 10 seconds longer"
             className="rounded-md btn-gear px-2.5 py-1 text-caption text-ink-subtle transition-colors hover:border-accent-line hover:text-ink disabled:opacity-35"
           >
-            + 15s
+            + 10s
           </button>
         </div>
       </div>

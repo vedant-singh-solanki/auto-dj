@@ -1,5 +1,6 @@
 import { bpmLabel, clock } from '../lib/format';
 import { useApp } from '../store';
+import { PreviewWave } from './PreviewWave';
 import { matchRate } from '../lib/audio/transition';
 
 /**
@@ -13,7 +14,8 @@ export function Queue() {
   const queue = useApp((s) => s.queue);
   const analyses = useApp((s) => s.analyses);
   const nowPlaying = useApp((s) => s.nowPlaying);
-  const { removeFromQueue, reshuffleQueue } = useApp.getState();
+  const cues = useApp((s) => s.cues);
+  const { removeFromQueue, reshuffleQueue, setCue, clearCue } = useApp.getState();
 
   /**
    * Described against the track it will actually follow, and worked out at
@@ -77,6 +79,28 @@ export function Queue() {
                     {describe(index)}
                   </p>
                 </div>
+
+                {/* The timeline for a track that is not on a deck yet: click to say
+                    where it should come in. */}
+                <PreviewWave
+                  analysis={analysis}
+                  width={110}
+                  height={20}
+                  cueSec={cues.get(entry.track.id)}
+                  hookSec={analysis?.hookSec}
+                  onSetCue={(seconds) => setCue(entry.track.id, seconds)}
+                />
+
+                {cues.has(entry.track.id) && (
+                  <button
+                    type="button"
+                    onClick={() => clearCue(entry.track.id)}
+                    title="Clear the cue point"
+                    className="shrink-0 font-mono text-caption text-primary hover:text-ink"
+                  >
+                    {clock(cues.get(entry.track.id) ?? 0)}
+                  </button>
+                )}
 
                 <span className="shrink-0 font-mono text-mono text-ink-tertiary">
                   {bpmLabel(analysis?.bpm)}

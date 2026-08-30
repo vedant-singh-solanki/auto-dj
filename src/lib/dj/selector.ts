@@ -2,6 +2,7 @@ import type { Analysis, Mood, Track, TrackId } from '../../types';
 import {
   ARTIST_WINDOW,
   MAX_TEMPO_STRETCH,
+  KEY_CONFIDENCE_FLOOR,
   ROTATION_WINDOW,
   SET_CLIMB_MIN,
   SET_OPENING_ENERGY,
@@ -9,6 +10,7 @@ import {
   tooLongToMix,
 } from '../constants';
 import { matchRate } from '../audio/transition';
+import { keysAreCompatible } from '../analysis/key';
 
 /**
  * Choosing what plays next.
@@ -83,6 +85,21 @@ function energyScore(
   return 1 - Math.min(1, Math.abs(candidate.energyScore - target) / 0.5);
 }
 
+/**
+ * Harmonic mixing: 1 when the two keys sit well together on the Camelot wheel.
+ *
+ * Neutral rather than punishing when either key is unknown or the detector was
+ * unsure — plenty of music is modal or percussive enough to have no useful key,
+ * and refusing to play it would be worse than mixing it blind.
+ */
+function keyScore(current: Analysis | null, candidate: Analysis | undefined): number {
+  const from = current?.key;
+  const to = candidate?.key;
+  if (!from || !to) return 0.6;
+  if (from.confidence < KEY_CONFIDENCE_FLOOR || to.confidence < KEY_CONFIDENCE_FLOOR) return 0.6;
+  return keysAreCompatible(from.camelot, to.camelot) ? 1 : 0.25;
+}
+
 export function scoreTrack(track: Track, input: SelectionInput): ScoredTrack | null {
   if (!track.supported || !input.isAvailable(track.id)) return null;
 
@@ -97,7 +114,8 @@ export function scoreTrack(track: Track, input: SelectionInput): ScoredTrack | n
   const tempo = tempoScore(input.current, analysis);
   const energy = energyScore(input.current, analysis, input.mood, input.setElapsedMin);
 
-  let score = 0.55 * tempo + 0.45 * energy;
+  const harmony = keyScore(input.current, analysis);
+  let score = 0.45 * tempo + 0.35 * energy + 0.2 * harmony;
   if (!analysis) score *= UNANALYSED_PENALTY;
 
   const artistAgo = input.playedArtists.indexOf(track.artist);

@@ -86,3 +86,19 @@ export const SET_OPENING_ENERGY = 0.5;
 export const SET_PEAK_ENERGY = 0.9;
 /** Minutes taken to climb from opening to peak. */
 export const SET_CLIMB_MIN = 45;
+
+/**
+ * Ceiling on the library.
+ *
+ * Every track costs a row, an analysis record and a slot in the scoring pass
+ * that runs on every pick. Past a few hundred the collection stops being
+ * something a person browses, and the DJ's choices get no better for it.
+ */
+export const MAX_LIBRARY_TRACKS = 500;
+
+/**
+ * Below this, the key detector has not really made up its mind and the result
+ * is ignored rather than mixed on. Modal, atonal and heavily percussive tracks
+ * land here, and a wrong key is worse than no key.
+ */
+export const KEY_CONFIDENCE_FLOOR = 0.3;

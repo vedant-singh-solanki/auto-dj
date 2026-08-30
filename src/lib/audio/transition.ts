@@ -120,6 +120,10 @@ export interface MixInput {
   handoverAtSec?: number;
   /** Manual entry point for the incoming track, if the user set one. */
   incomingCue?: number;
+  /** Force a particular kind of transition, rather than choosing one. */
+  kind?: MixKind;
+  /** Injectable for tests, so a chosen kind can be made deterministic. */
+  random?: () => number;
 }
 
 export interface HandoverOptions {
@@ -189,13 +193,50 @@ export function blendBeatsFor(outgoing: Analysis, incoming: Analysis): number {
   return DEFAULT_MIX_BEATS;
 }
 
+/**
+ * Which kind of transition this pair calls for.
+ *
+ * A DJ does not blend everything. House and techno get long tempo-locked
+ * blends; hip-hop, pop and open-format sets live on cuts and rewinds, because
+ * the tracks have vocals that would talk over each other and drops that are
+ * wasted by a fade. Picking by ear is what a person does, so this picks by the
+ * two things a person is reacting to: whether the tempos can lock at all, and
+ * how big the jump in energy is.
+ *
+ * There is deliberate randomness in it. An auto-mix that always does the same
+ * thing in the same situation gives itself away within a few tracks.
+ */
+export function chooseKind(
+  rate: number | null,
+  outgoing: Analysis,
+  incoming: Analysis,
+  random: () => number,
+): MixKind {
+  const jump = incoming.energyScore - outgoing.energyScore;
+
+  if (rate === null) {
+    // Tempos cannot meet. A rewind turns that into a deliberate gear change
+    // rather than an apology, but only when both grids are solid enough to
+    // land the drop on a beat.
+    const confident =
+      outgoing.bpmConfidence >= CONFIDENCE_FLOOR && incoming.bpmConfidence >= CONFIDENCE_FLOOR;
+    if (confident && jump > 0 && random() < 0.4) return 'backspin';
+    return 'plain';
+  }
+
+  // Tempos lock. A big lift is worth cutting to — the drop lands whole instead
+  // of arriving underneath the track it is replacing.
+  if (jump > 0.15 && random() < 0.5) return 'cut';
+  return 'beatmatched';
+}
+
 export function planMix(input: MixInput): MixPlan {
   const { outgoing, outgoingRate, outgoingPositionSec, incoming, contextNow, immediate } = input;
 
   const trusted = outgoing.bpmConfidence >= CONFIDENCE_FLOOR && incoming.bpmConfidence >= CONFIDENCE_FLOOR;
   const outgoingBpm = outgoing.bpm * outgoingRate;
   const rate = trusted ? matchRate(outgoingBpm, incoming.bpm) : null;
-  const kind: MixKind = rate === null ? 'plain' : 'beatmatched';
+  const kind: MixKind = input.kind ?? chooseKind(rate, outgoing, incoming, input.random ?? Math.random);
 
   const beats = input.beats ?? blendBeatsFor(outgoing, incoming);
   let durationSec = kind === 'beatmatched' ? (beats * 60) / outgoingBpm : PLAIN_MIX_SEC;
@@ -273,6 +314,24 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   // One beat of the outgoing track, as heard. Drives the echo timing.
   const outgoingBeatSec = plan.beats > 0 ? durationSec / plan.beats : 0;
 
+  // A cut is not a short crossfade — it is the absence of one. Track A stops on
+  // the downbeat and B is already at full level. Nothing overlaps, which is the
+  // whole point: two vocals talking over each other is what a cut avoids.
+  if (plan.kind === 'cut') {
+    incomingDeck.start(startAt, offsetSec, rate, onIncomingEnded);
+    forceAt(incomingDeck.fader.gain, 1, startAt);
+    outgoingDeck.stopAt(startAt + 0.01);
+    return;
+  }
+
+  // A rewind: A spins backwards to a stop, then B lands on the downbeat after.
+  if (plan.kind === 'backspin') {
+    outgoingDeck.backspin(startAt, durationSec, outgoingPositionAt(outgoingDeck, startAt));
+    incomingDeck.start(startAt + durationSec, offsetSec, rate, onIncomingEnded);
+    forceAt(incomingDeck.fader.gain, 1, startAt + durationSec);
+    return;
+  }
+
   incomingDeck.start(startAt, offsetSec, rate, onIncomingEnded);
 
   const fadeIn = incomingDeck.fader.gain;
@@ -328,4 +387,15 @@ export function scheduleMix(outgoingDeck: Deck, incomingDeck: Deck, plan: MixPla
   }
 
   outgoingDeck.stopAt(endAt + 0.05);
+}
+
+/** Sets a parameter at an exact future time, clearing anything in its way. */
+function forceAt(param: AudioParam, value: number, at: number): void {
+  param.cancelScheduledValues(at);
+  param.setValueAtTime(value, at);
+}
+
+/** Where the outgoing track will be when the transition begins. */
+function outgoingPositionAt(deck: Deck, at: number): number {
+  return deck.positionAt(at);
 }

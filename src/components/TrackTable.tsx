@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Analysis, Track } from '../types';
 import { bpmLabel, clock } from '../lib/format';
 import { hasSource } from '../lib/library/fileSource';
-import { tooLongToMix } from '../lib/constants';
+import { KEY_CONFIDENCE_FLOOR, tooLongToMix } from '../lib/constants';
 import { tracksInScope, useApp } from '../store';
 import { PreviewWave } from './PreviewWave';
 import { Stars } from './Stars';
@@ -14,7 +14,7 @@ import { Stars } from './Stars';
  * fills itself in as the background analysis reaches it.
  */
 
-type SortKey = 'title' | 'artist' | 'genre' | 'bpm' | 'rating' | 'duration';
+type SortKey = 'title' | 'artist' | 'genre' | 'bpm' | 'key' | 'rating' | 'duration';
 
 /** Rendering thousands of rows is slower than any sane user needs; the rest are
  *  one search box away. */
@@ -53,6 +53,10 @@ export function TrackTable() {
           return (a.genre ?? '~').localeCompare(b.genre ?? '~') || a.title.localeCompare(b.title);
         case 'bpm':
           return (analyses.get(b.id)?.bpm ?? 0) - (analyses.get(a.id)?.bpm ?? 0);
+        case 'key':
+          return (analyses.get(a.id)?.key?.camelot ?? '~').localeCompare(
+            analyses.get(b.id)?.key?.camelot ?? '~',
+          );
         case 'rating':
           return (ratings.get(b.id) ?? 0) - (ratings.get(a.id) ?? 0);
         case 'duration':
@@ -110,6 +114,7 @@ export function TrackTable() {
               {header('artist', 'Artist')}
               {header('genre', 'Genre')}
               {header('bpm', 'BPM', 'text-right')}
+              {header('key', 'Key')}
               {header('rating', 'Rating')}
               {header('duration', 'Time', 'text-right')}
               <th scope="col" className="border-b border-hairline px-2 py-1.5" />
@@ -138,6 +143,9 @@ export function TrackTable() {
                   </td>
                   <td className="w-14 px-2 py-1 text-right font-mono text-mono text-ink-muted">
                     {bpmLabel(analysis?.bpm)}
+                  </td>
+                  <td className="w-14 px-2 py-1 font-mono text-mono text-ink-subtle">
+                    {analysis?.key && analysis.key.confidence >= KEY_CONFIDENCE_FLOOR ? analysis.key.camelot : '—'}
                   </td>
                   <td className="w-24 px-2 py-1">
                     <Stars value={ratings.get(track.id) ?? 0} onChange={(stars) => setRating(track.id, stars)} />

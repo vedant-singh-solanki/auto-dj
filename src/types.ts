@@ -5,6 +5,8 @@
  * path — moving or renaming a folder keeps the cached analysis, and editing a
  * file invalidates it.
  */
+import type { DetectedKey } from './lib/analysis/key';
+
 export type TrackId = string;
 
 export function trackIdFor(file: { name: string; size: number; lastModified: number }): TrackId {
@@ -35,7 +37,7 @@ export interface Track {
 }
 
 /** Bump when the analysis maths changes, to invalidate every cached result. */
-export const ANALYSIS_VERSION = 3;
+export const ANALYSIS_VERSION = 4;
 
 export interface Analysis {
   id: TrackId;
@@ -64,6 +66,8 @@ export interface Analysis {
    * the chorus. This, not the intro, is where a live set comes in.
    */
   hookSec: number;
+  /** Detected musical key, for harmonic mixing. */
+  key?: DetectedKey;
   /** Seconds. Where the outgoing track should begin handing over. */
   mixOutSec: number;
 
@@ -81,7 +85,16 @@ export interface HistoryEntry {
 }
 
 /** Why a transition could not be beat-matched, for the UI to explain. */
-export type MixKind = 'beatmatched' | 'plain';
+/**
+ * How one track hands over to the next.
+ *
+ * - `beatmatched` — tempo-locked blend with the bass swap, filter and echo.
+ * - `cut` — Track A stops dead on the downbeat and B starts. The backbone of
+ *   hip-hop and open-format mixing, and wrong for house.
+ * - `backspin` — A is spun backwards to a stop, then B drops. A genre switch.
+ * - `plain` — an unmatched crossfade, when nothing else can be trusted.
+ */
+export type MixKind = 'beatmatched' | 'cut' | 'backspin' | 'plain';
 
 export interface TransitionPlan {
   fromId: TrackId;
